@@ -17,9 +17,11 @@ from core.simulation import curve
 
 SURFACE, INK, INK2, MUTED = "#fcfcfb", "#0b0b0b", "#52514e", "#898781"
 GRID, BASE = "#e1e0d9", "#c3c2b7"
-BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
-BLUE_DARK, GRAY_MARK, RED = "#184f95", "#c3c2b7", "#e34948"
-DIVERGING = [[0, BLUE], [0.5, "#f0efec"], [1, RED]]
+# Paleta de la app de regresión MÚLTIPLE: verde azulado (principal), ámbar (contraste) y violeta (tercera serie).
+# Los nombres BLUE/ORANGE/AQUA se conservan como «principal / contraste / tercera» para no tocar cada gráfico.
+BLUE, ORANGE, AQUA = "#0f766e", "#d97706", "#7c3aed"
+BLUE_DARK, GRAY_MARK, RED = "#134e4a", "#c3c2b7", "#dc2626"
+DIVERGING = [[0, "#7c3aed"], [0.5, "#f0efec"], [1, "#0f766e"]]
 FONT = "system-ui, -apple-system, 'Segoe UI', sans-serif"
 
 
@@ -280,3 +282,93 @@ def r2_vs_score(table: pd.DataFrame) -> go.Figure:
     fig.update_layout(barmode="group")
     fig.update_yaxes(automargin=True)
     return _base(fig, "R² en entrenamiento vs. prueba", max(280, 46 * len(d) + 100), "R²", None)
+
+
+# ----------------------------------------------------------------------------- regresión múltiple
+def observed_vs_fitted_multi(res, y_test=None, yhat_test=None) -> go.Figure:
+    est = res.y_back(res.fitted)
+    lo = float(min(res.y_obs.min(), est.min()))
+    hi = float(max(res.y_obs.max(), est.max()))
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=[lo, hi], y=[lo, hi], mode="lines", name="ajuste perfecto (y = x)", line=dict(color=BASE, width=2), hoverinfo="skip"))
+    fig.add_trace(_pts(est, res.y_obs, f"entrenamiento (n={res.n})", BLUE, hover="estimado: %{x:,.4g}<br>real: %{y:,.4g}<extra></extra>"))
+    if y_test is not None and len(y_test):
+        fig.add_trace(_pts(np.asarray(yhat_test), np.asarray(y_test), "prueba (no usada para ajustar)", ORANGE,
+                           hover="estimado: %{x:,.4g}<br>real: %{y:,.4g}<extra>prueba</extra>"))
+    return _base(fig, f"{res.y_name}: valores observados vs. estimados", 400, "estimado por el modelo", "observado")
+
+
+def coef_importance_chart(table: pd.DataFrame) -> go.Figure:
+    """Barras de |β estandarizado|: verde = aumenta Y, ámbar = disminuye Y, gris = no significativa."""
+    d = table.iloc[::-1]
+    colors = [GRAY_MARK if s != "sí" else (BLUE if v > 0 else ORANGE) for v, s in zip(d["β estandarizado"], d["significativa"])]
+    fig = go.Figure(go.Bar(y=d["variable"].astype(str), x=d["β estandarizado"], orientation="h", marker=dict(color=colors, cornerradius=4),
+                           text=d["β estandarizado"].map(lambda v: f"{v:+.2f}"), textposition="outside", textfont=dict(color=INK2, size=11),
+                           hovertemplate="%{y}: β* = %{x:+.3f}<extra></extra>"))
+    fig.add_vline(x=0, line=dict(color=BASE, width=2))
+    fig.update_yaxes(automargin=True)
+    return _base(fig, "Peso relativo de cada variable (β estandarizado)", max(240, 44 * len(d) + 100),
+                 "desviaciones estándar de Y por cada desviación estándar de X", None, legend=False)
+
+
+def partial_effect_chart(cv: pd.DataFrame, x_name: str, y_name: str, level: int, points: list | None = None,
+                         x_range: tuple | None = None) -> go.Figure:
+    """Efecto parcial de una X (las demás fijas) con bandas de confianza y predicción."""
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=np.r_[cv["x"], cv["x"][::-1]], y=np.r_[cv["ip_sup"], cv["ip_inf"][::-1]], fill="toself",
+                             fillcolor=_rgba(BLUE, 0.10), line=dict(width=0), name=f"intervalo de predicción {level}% (un caso)", hoverinfo="skip"))
+    fig.add_trace(go.Scatter(x=np.r_[cv["x"], cv["x"][::-1]], y=np.r_[cv["ic_sup"], cv["ic_inf"][::-1]], fill="toself",
+                             fillcolor=_rgba(BLUE, 0.30), line=dict(width=0), name=f"intervalo de confianza {level}% (promedio)", hoverinfo="skip"))
+    fig.add_trace(go.Scatter(x=cv["x"], y=cv["y_est"], mode="lines", name="estimación", line=dict(color=INK, width=2.5),
+                             hovertemplate=f"{x_name}: %{{x:,.4g}}<br>Ŷ: %{{y:,.4g}}<extra></extra>"))
+    for i, pt in enumerate(sorted(points or [], key=lambda p: p["x"])):
+        fig.add_trace(go.Scatter(x=[pt["x"]], y=[pt["y"]], mode="markers+text", name=pt["name"], text=[pt["name"]],
+                                 textposition=("top center", "bottom center")[i % 2], textfont=dict(color=INK, size=11),
+                                 marker=dict(size=13, color=pt.get("color", INK), line=dict(color=SURFACE, width=2)),
+                                 hovertemplate=f"{pt['name']}<br>{x_name}: %{{x:,.4g}}<br>Ŷ: %{{y:,.4g}}<extra></extra>"))
+    if x_range:
+        fig.add_vrect(x0=float(cv["x"].min()), x1=x_range[0], fillcolor=_rgba(ORANGE, 0.08), line_width=0)
+        fig.add_vrect(x0=x_range[1], x1=float(cv["x"].max()), fillcolor=_rgba(ORANGE, 0.08), line_width=0,
+                      annotation_text="extrapolación", annotation_position="top right", annotation_font=dict(color=INK2, size=11))
+    return _base(fig, f"Efecto de {x_name} sobre {y_name} (las demás variables fijas)", 420, x_name, y_name)
+
+
+def tornado_chart(t: pd.DataFrame, y_label: str, pct: float) -> go.Figure:
+    d = t.iloc[::-1]
+    up, dn = f"+{pct:g}%", f"-{pct:g}%"
+    fig = go.Figure()
+    fig.add_trace(go.Bar(y=d["variable"].astype(str), x=d[up], orientation="h", name=f"X sube {pct:g}%", marker=dict(color=BLUE, cornerradius=4),
+                         hovertemplate="%{y}: %{x:+,.4g}<extra>" + up + "</extra>"))
+    fig.add_trace(go.Bar(y=d["variable"].astype(str), x=d[dn], orientation="h", name=f"X baja {pct:g}%", marker=dict(color=ORANGE, cornerradius=4),
+                         hovertemplate="%{y}: %{x:+,.4g}<extra>" + dn + "</extra>"))
+    fig.update_layout(barmode="overlay")
+    fig.add_vline(x=0, line=dict(color=BASE, width=2))
+    fig.update_yaxes(automargin=True)
+    return _base(fig, f"¿Qué variable mueve más a {y_label}? (cada una ±{pct:g}%, las demás fijas)", max(260, 46 * len(d) + 110),
+                 f"cambio estimado en {y_label}", None)
+
+
+def sensitivity_multi_chart(tab: pd.DataFrame, y_label: str) -> go.Figure:
+    d = tab.assign(etq=tab["variable"].astype(str) + "  " + tab["escenario"]).iloc[::-1]
+    colors = [BLUE if v >= 0 else ORANGE for v in d["dif_absoluta"]]
+    fig = go.Figure(go.Bar(y=d["etq"], x=d["dif_absoluta"], orientation="h", marker=dict(color=colors, cornerradius=4),
+                           text=d["dif_absoluta"].map(lambda v: f"{v:+,.4g}"), textposition="outside", textfont=dict(color=INK2, size=11),
+                           hovertemplate="%{y}: %{x:+,.4g}<extra></extra>"))
+    fig.add_vline(x=0, line=dict(color=BASE, width=2))
+    fig.update_yaxes(automargin=True)
+    return _base(fig, f"Cambio estimado en {y_label} al mover una variable a la vez", max(260, 30 * len(d) + 100),
+                 f"cambio absoluto en {y_label}", None, legend=False)
+
+
+def singles_vs_multi_chart(singles: pd.DataFrame, r2_multi: float, label: str) -> go.Figure:
+    d = singles.head(10)
+    names = [f"solo {v}" for v in d["variable"]] + [f"MODELO MÚLTIPLE ({label})"]
+    vals = list(d["R² sola"]) + [r2_multi]
+    colors = [GRAY_MARK] * len(d) + [BLUE]
+    fig = go.Figure(go.Bar(y=names[::-1], x=vals[::-1], orientation="h", marker=dict(color=colors[::-1], cornerradius=4),
+                           text=[f"{v:.0%}" for v in vals[::-1]], textposition="outside", textfont=dict(color=INK2, size=11),
+                           hovertemplate="%{y}: R² = %{x:.3f}<extra></extra>"))
+    fig.update_yaxes(automargin=True)
+    fig.update_xaxes(range=[0, min(1.08, max(vals) * 1.2 + 0.05)], tickformat=".0%")
+    return _base(fig, "Cuánto explica cada variable por sí sola frente al modelo múltiple (R²)", max(260, 34 * len(names) + 100),
+                 "R² (entrenamiento)", None, legend=False)

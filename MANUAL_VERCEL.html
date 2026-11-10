@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Manual: publicar la app en Vercel</title>
-<meta name="description" content="Manual paso a paso para publicar el Asistente de Regresión Lineal Simple con una página en Vercel y la app en Streamlit Community Cloud.">
+<meta name="description" content="Manual paso a paso para publicar el Asistente de Regresión Lineal Múltiple con una página en Vercel y la app en Streamlit Community Cloud.">
 <style>
 :root{
   --bg:#f6f6f3; --surface:#ffffff; --ink:#14130f; --ink2:#4d4c47; --muted:#85837c; --line:#e3e2db;
@@ -190,7 +190,7 @@ footer ul{padding-left:1.2em}
 <!-- ============================================================ PORTADA -->
 <div class="hero" id="inicio">
   <h1>Publique su app en Vercel</h1>
-  <p>De los archivos en su computador a una dirección web propia, en 8 pasos. Manual del <strong>Asistente de Regresión Lineal Simple</strong>.</p>
+  <p>De los archivos en su computador a una dirección web propia, en 8 pasos. Manual del <strong>Asistente de Regresión Lineal Múltiple</strong>.</p>
   <div class="chips"><span class="chip">⏱ unos 45 minutos</span><span class="chip">🧰 nivel principiante</span><span class="chip">☑ marque cada paso: su avance se guarda</span></div>
 </div>
 
@@ -273,7 +273,7 @@ git status</code></pre>
     <div class="task"><input type="checkbox" data-id="p2-3" aria-label="Paso hecho"><div class="body">
       <p class="lead">Confirme y suba</p>
 <pre><code>git add .
-git commit -m "App de regresion lineal simple y pagina para Vercel"
+git commit -m "App de regresion lineal multiple y pagina para Vercel"
 git push origin main</code></pre>
       <p>La primera vez, Git puede abrir una ventana para iniciar sesión en GitHub. Los avisos <em>«LF will be replaced by CRLF»</em> son normales en Windows.</p>
     </div></div>
@@ -304,7 +304,7 @@ git push origin main</code></pre>
         <tr><td>Repository</td><td><code>velandiaivan640-droid/app-regresion-multiple</code></td></tr>
         <tr><td>Branch</td><td><code>main</code></td></tr>
         <tr><td>Main file path</td><td><code>app.py</code></td></tr>
-        <tr><td>App URL</td><td>un nombre libre, p. ej. <code>regresion-simple</code></td></tr>
+        <tr><td>App URL</td><td>un nombre libre, p. ej. <code>regresion-multiple</code></td></tr>
       </table></div>
     </div></div>
     <div class="task"><input type="checkbox" data-id="p3-4" aria-label="Paso hecho"><div class="body">
@@ -318,7 +318,7 @@ git push origin main</code></pre>
     </div></div>
     <div class="task"><input type="checkbox" data-id="p3-6" aria-label="Paso hecho"><div class="body">
       <p class="lead">Copie la dirección de su app</p>
-      <p>Tendrá la forma <code>https://regresion-simple.streamlit.app</code>. <strong>Guárdela: la necesita en el paso 4.</strong></p>
+      <p>Tendrá la forma <code>https://regresion-multiple.streamlit.app</code>. <strong>Guárdela: la necesita en el paso 4.</strong></p>
     </div></div>
     <div class="task"><input type="checkbox" data-id="p3-7" aria-label="Paso hecho"><div class="body">
       <p class="lead">Compruebe que es pública</p>
@@ -341,7 +341,7 @@ git push origin main</code></pre>
     </div></div>
     <div class="task"><input type="checkbox" data-id="p4-2" aria-label="Paso hecho"><div class="body">
       <p class="lead">Reemplace la dirección por la de su app</p>
-<pre><code>const APP_URL = "https://regresion-simple.streamlit.app";</code></pre>
+<pre><code>const APP_URL = "https://regresion-multiple.streamlit.app";</code></pre>
       <p>Sin <code>?embed=true</code> al final: la página lo agrega sola. Guarde el archivo.</p>
     </div></div>
     <div class="task"><input type="checkbox" data-id="p4-3" aria-label="Paso hecho"><div class="body">
@@ -461,7 +461,7 @@ vercel --prod</code></pre>
   <p class="meta">⏱ 5 min · hágalo desde la dirección pública, idealmente en una ventana de incógnito</p>
   <div class="steps">
     <div class="task"><input type="checkbox" data-id="p7-1" aria-label="Paso hecho"><div class="body"><p class="lead">La página muestra el encabezado y la app se carga dentro</p><p>La primera vez puede tardar unos segundos si la app estaba en reposo.</p></div></div>
-    <div class="task"><input type="checkbox" data-id="p7-2" aria-label="Paso hecho"><div class="body"><p class="lead">Módulo 1: cargue el ejemplo «Banca · monto de crédito aprobado (1000 registros)»</p><p>Debe cargar y avanzar por los módulos 2 a 8 sin errores.</p></div></div>
+    <div class="task"><input type="checkbox" data-id="p7-2" aria-label="Paso hecho"><div class="body"><p class="lead">Módulo 1 (Carga de datos): cargue el ejemplo «Banca · monto de crédito aprobado (1000 registros)»</p><p>Debe cargar y avanzar por los módulos 2 a 8 sin errores.</p></div></div>
     <div class="task"><input type="checkbox" data-id="p7-3" aria-label="Paso hecho"><div class="body"><p class="lead">Cargue un archivo desde su computador (módulo 2)</p><p>Use <code>sample_data/cartera_credito.csv</code>. <em>No pude verificar yo la carga de archivos dentro del marco</em>: pruébelo.</p></div></div>
     <div class="task"><input type="checkbox" data-id="p7-4" aria-label="Paso hecho"><div class="body"><p class="lead">Descargue el informe (módulo 12)</p><p>Verifique que la descarga funciona dentro del marco. Si algo falla, use el botón <strong>«Abrir en pestaña nueva»</strong> del encabezado: abre la app directamente.</p></div></div>
     <div class="task"><input type="checkbox" data-id="p7-5" aria-label="Paso hecho"><div class="body"><p class="lead">Ábrala desde el celular</p></div></div>

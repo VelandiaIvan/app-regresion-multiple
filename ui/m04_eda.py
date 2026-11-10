@@ -90,7 +90,7 @@ def render() -> None:
             if not lin["formas"].empty:
                 with st.expander("Comparación de formas funcionales (mismo Y)"):
                     C.table(lin["formas"], 4)
-            C.how_to_read("La **recta (negra)** es lo que ajustaría la regresión simple. La **curva naranja (LOWESS)** sigue los datos sin imponer forma: "
+            C.how_to_read("La **recta (negra)** es la relación de esa variable sola con Y (sin considerar las demás). La **curva naranja (LOWESS)** sigue los datos sin imponer forma: "
                           "si se separa claramente de la recta, la relación es curva. Si los puntos forman un abanico (más dispersión a un lado), habrá heterocedasticidad.")
 
     with tabs[4]:

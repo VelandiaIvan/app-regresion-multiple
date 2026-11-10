@@ -1,21 +1,26 @@
-"""Módulo 2 · Carga y exploración inicial de datos."""
+"""Módulo 1 · Carga y exploración inicial de datos (el flujo empieza aquí)."""
 from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
 
 from core import loader, profiling
+from sample_data import generate as G
 from ui import charts
 from ui import components as C
 from ui import state
+
+def _load_example() -> None:
+    state.load_sample(st.session_state["sample_sel"])
+
 
 SEP = {"Automático": None, "Coma ( , )": ",", "Punto y coma ( ; )": ";", "Tabulador": "\t", "Barra ( | )": "|"}
 
 
 def render() -> None:
     ss = st.session_state
-    C.hero("Módulo 2", "Carga y exploración inicial de datos", "Cargue un archivo TXT, CSV, XLS o XLSX. La aplicación detecta formato, separador, "
-           "codificación, números con coma decimal y fechas, y le muestra el estado de los datos.")
+    C.hero("Módulo 1", "Carga de datos", "Cargue un archivo TXT, CSV, XLS o XLSX y la aplicación hace el resto: detecta el formato, "
+           "explica de qué tratan los datos y propone qué variable estimar. No necesita describir su negocio.")
 
     up = st.file_uploader("Archivo de datos", type=["csv", "txt", "tsv", "xls", "xlsx", "xlsm"], key="uploader")
     with st.expander("Opciones avanzadas de lectura"):
@@ -38,9 +43,16 @@ def render() -> None:
                 st.error(f"No se pudo leer el archivo: {exc}")
                 st.stop()
 
+    with st.expander(f"🧪 ¿No tiene datos a la mano? Pruebe con un ejemplo ({len(G.DATASETS)} casos sintéticos)", expanded=not state.has_data()):
+        key = st.selectbox("Caso de ejemplo", list(G.DATASETS), key="sample_sel")
+        st.caption(G.DATASETS[key][2])
+        st.button("Cargar ejemplo", on_click=_load_example, type="primary")
+        if state.has_data() and "sintéticos" in ss.source_name:
+            st.success(f"Cargado: {ss.source_name}")
+
     if not state.has_data():
-        C.callout("Cargue un archivo, o use un caso de ejemplo desde el módulo 1.", "info")
-        st.button("Ir al módulo 1 para elegir un ejemplo ▶", on_click=C.goto, args=("m01_contexto",))
+        C.callout("Cargue un archivo con una fila por caso y una columna por variable. Para una regresión múltiple necesita una columna numérica "
+                  "a estimar (Y) y al menos dos columnas más que la expliquen (X).", "info")
         return
 
     res = ss.loaded
@@ -104,4 +116,4 @@ def render() -> None:
             st.dataframe(pd.DataFrame(res.conversions), hide_index=True)
         else:
             st.caption("No fue necesario convertir tipos: el archivo ya traía números y fechas reconocibles.")
-    C.next_step("Continuar: preparar los datos ▶", "m03_preparacion")
+    C.next_step("Continuar: ver qué dicen sus datos ▶", "m01_contexto")

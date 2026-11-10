@@ -174,7 +174,10 @@ def leakage_risk(x_name: str, y_name: str, r: float, declared_factor: bool = Fal
                         "en otra escala o definición.")
     if declared_factor:
         return "ninguna", ""
-    if shared and a >= 0.6:
+    # «Bowl Price» y «Bowls» comparten la palabra del producto, pero una es un PRECIO y la otra una cantidad: miden cosas
+    # distintas. Solo hay sospecha si lo compartido es un concepto de negocio (ventas≈ingresos, monto≈cuota), no un nombre.
+    named_only = shared and not any(isinstance(c, int) for c in shared) and any(isinstance(c, int) for c in (cx ^ cy))
+    if shared and a >= 0.6 and not named_only:
         return "media", ("Comparte concepto con Y (p. ej. monto y cuota, ventas e ingresos) y la correlación es alta: puede calcularse "
                          "DESPUÉS de conocer Y. Verifique que se conozca antes de necesitar estimarlo.")
     # «resultado» solo si TODOS los conceptos informativos del nombre lo son: «ingresos_netos» sí, «ingreso_mensual_cliente» no
@@ -196,6 +199,7 @@ def rank_target_candidates(df: pd.DataFrame, classes: pd.DataFrame, ctx: Busines
         return pd.DataFrame(columns=["variable", "puntaje", "razones", "advertencias"])
     corr = df[num].corr(method="spearman") if len(num) > 1 else pd.DataFrame()
     has_text = bool(ctx.target_text().strip())
+    expl = explainability(df, num)
     rows = []
     for c in num:
         cls = classes.set_index("variable").loc[c]
@@ -204,6 +208,17 @@ def rank_target_candidates(df: pd.DataFrame, classes: pd.DataFrame, ctx: Busines
         cc = column_concepts(c)
         outcome = float(any(isinstance(k, int) and k in OUTCOME_CONCEPTS for k in cc))
         driver = float(any(isinstance(k, int) and k in DRIVER_CONCEPTS for k in cc))
+        # Un precio que se mueve en sentido CONTRARIO a las demás variables suele ser una palanca (ley de la demanda),
+        # no el resultado: a mayor precio, menos unidades vendidas.
+        price_lever = False
+        if PRICE_CONCEPT in cc and not corr.empty and c in corr.columns and len(corr) > 2:
+            strongest = corr[c].drop(c).dropna()
+            strongest = strongest.reindex(strongest.abs().sort_values(ascending=False).index).head(2)
+            price_lever = bool(len(strongest) and (strongest < -0.3).all())
+        if price_lever:
+            outcome, driver = 0.0, 1.0
+        r2_others, used = expl.get(c, (np.nan, []))
+        e = float(np.clip(r2_others, 0, 1)) if np.isfinite(r2_others) else 0.0
         completeness = 1 - cls["pct_faltantes"] / 100
         continuous = 1.0 if cls["n_únicos"] >= 15 else 0.6
         quality = completeness * continuous * (0.5 if cls["baja_variabilidad"] else 1.0)
@@ -213,13 +228,18 @@ def rank_target_candidates(df: pd.DataFrame, classes: pd.DataFrame, ctx: Busines
         if has_text:
             score = 45 * m_t + 8 * m_all + 14 * outcome - 5 * driver * (1 - outcome) + 14 * quality + 14 * conn
         else:
-            score = 25 * outcome - 8 * driver * (1 - outcome) + 30 * quality + 40 * conn
+            score = 20 * outcome - 8 * driver * (1 - outcome) + 20 * quality + 15 * conn + 45 * e
         reasons, warns = [], []
         if m_t >= 0.5:
             reasons.append("coincide con el resultado que usted describió")
         if outcome:
-            reasons.append("concepto típico de resultado de negocio (ventas, costos, tiempos, consumo…)")
-        if driver and not outcome:
+            reasons.append("su nombre corresponde a un resultado típico de negocio (ventas, costos, tiempos, consumo…)")
+        if e >= 0.3 and used:
+            shown = ", ".join(used[:4]) + ("…" if len(used) > 4 else "")
+            reasons.append(f"es de las que mejor se explican con las demás columnas (R² = {e:.2f} usando {shown})")
+        if price_lever:
+            warns.append("parece un precio que EXPLICA a otras variables (se mueve en sentido contrario a ellas): suele ser un factor, no el resultado")
+        elif driver and not outcome:
             warns.append("suena más a factor explicativo que a resultado")
         reasons.append(f"{completeness:.0%} de datos completos")
         if conn > 0.4:
@@ -229,10 +249,48 @@ def rank_target_candidates(df: pd.DataFrame, classes: pd.DataFrame, ctx: Busines
         if cls["baja_variabilidad"]:
             warns.append("poca variabilidad")
         if cls["detalle"].startswith("discreta"):
-            warns.append("pocos valores distintos")
+            warns.append("toma valores enteros (conteo): la regresión lineal la trata como si fuera continua")
         rows.append({"variable": c, "puntaje": float(np.clip(score, 0, 100)), "razones": "; ".join(reasons),
-                     "advertencias": "; ".join(warns)})
-    return pd.DataFrame(rows).sort_values("puntaje", ascending=False).reset_index(drop=True)
+                     "advertencias": "; ".join(warns), "R²_con_las_demás": e})
+    return pd.DataFrame(rows).sort_values("puntaje", ascending=False, kind="stable").reset_index(drop=True)
+
+
+PRICE_CONCEPT = CONCEPT_OF["precio"]
+
+
+def explainability(df: pd.DataFrame, num: list[str], max_rows: int = 5000) -> dict:
+    """Para cada columna numérica: R² ajustado al explicarla con TODAS las demás (y cuáles aportan más).
+
+    Idea: la variable «resultado» de una tabla suele ser la que mejor se explica con el resto de columnas.
+    Devuelve {columna: (R² ajustado, [otras columnas ordenadas por |correlación|])}.
+    """
+    out: dict = {}
+    if len(num) < 3:
+        return out
+    d = df[num].apply(pd.to_numeric, errors="coerce")
+    if len(d) > max_rows:
+        d = d.sample(max_rows, random_state=0)
+    for c in num:
+        others = [o for o in num if o != c]
+        dd = d[[c] + others].dropna()
+        others = [o for o in others if dd[o].nunique() > 1]
+        n, k = len(dd), len(others)
+        if n < k + 8 or k == 0 or dd[c].nunique() < 2:
+            continue
+        X = np.column_stack([np.ones(n), dd[others].to_numpy(float)])
+        y = dd[c].to_numpy(float)
+        beta, *_ = np.linalg.lstsq(X, y, rcond=None)
+        sse = float(((y - X @ beta) ** 2).sum())
+        sst = float(((y - y.mean()) ** 2).sum())
+        if sst <= 0:
+            continue
+        r2 = 1 - sse / sst
+        r2_adj = 1 - (1 - r2) * (n - 1) / max(n - k - 1, 1)
+        with np.errstate(all="ignore"):
+            cors = {o: abs(float(np.corrcoef(dd[o].to_numpy(float), y)[0, 1])) for o in others}
+        ranked = [o for o in sorted(cors, key=lambda o: -cors[o]) if np.isfinite(cors[o]) and cors[o] >= 0.2]
+        out[c] = (float(r2_adj), ranked)
+    return out
 
 
 # ----------------------------------------------------------------------------

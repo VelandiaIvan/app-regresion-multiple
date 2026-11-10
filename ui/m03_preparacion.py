@@ -218,7 +218,7 @@ def render() -> None:
                 extra["order"] = st.multiselect("Orden de menor a mayor", levels, default=levels, key="m3_en_ord")
             if c3.button("Codificar", key="m3_en_add"):
                 _add("encode", ev, em, **extra)
-            st.caption("En regresión simple, una variable indicadora 0/1 como X mide la diferencia promedio de Y entre dos grupos.")
+            st.caption("En la regresión, una variable indicadora 0/1 como X mide la diferencia promedio de Y entre dos grupos, con las demás variables constantes.")
 
     # ------------------------------------------------------------------ bitácora
     with tabs[4]:

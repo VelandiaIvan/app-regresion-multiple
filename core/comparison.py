@@ -85,6 +85,8 @@ class ComparisonResult:
     recommendation: Recommendation
     skipped: list
     md: ModelingData
+    singles: pd.DataFrame | None = None      # regresión múltiple: desempeño de cada X por sí sola (referencia)
+    usable: list = field(default_factory=list)
 
 
 # ----------------------------------------------------------------------------

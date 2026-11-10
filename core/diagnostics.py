@@ -243,3 +243,178 @@ def qq_points(res: SLRResult) -> tuple[np.ndarray, np.ndarray]:
     """Cuantiles teóricos normales vs. residuos estandarizados ordenados."""
     (osm, osr), _ = stats.probplot(res.std_resid, dist="norm")
     return np.asarray(osm), np.asarray(osr)
+
+
+# ============================================================================
+# Regresión MÚLTIPLE
+# ============================================================================
+def _runs_p(signs: np.ndarray) -> tuple[int, float]:
+    n1, n2 = int(signs.sum()), int((~signs).sum())
+    runs = 1 + int((signs[1:] != signs[:-1]).sum())
+    if n1 == 0 or n2 == 0:
+        return runs, np.nan
+    mu = 2 * n1 * n2 / (n1 + n2) + 1
+    var = (mu - 1) * (mu - 2) / (n1 + n2 - 1)
+    z = (runs - mu) / np.sqrt(var) if var > 0 else 0.0
+    return runs, float(2 * stats.norm.sf(abs(z)))
+
+
+def m_check_linearity(res) -> Check:
+    """Prueba RESET de Ramsey (¿mejora el modelo al agregar Ŷ²?) y rachas de los residuos ordenados por Ŷ."""
+    n, k = res.n, res.k
+    if n < k + 10:
+        return Check("linealidad", "Linealidad", "na", {}, "Muy pocas observaciones para evaluar la forma de la relación.")
+    Xd = np.column_stack([np.ones(n), res.X])
+    f = res.fitted - res.fitted.mean()
+    X2 = np.column_stack([Xd, f ** 2])
+    b2, *_ = np.linalg.lstsq(X2, res.y, rcond=None)
+    sse2 = float(((res.y - X2 @ b2) ** 2).sum())
+    df2 = n - k - 2
+    F = (res.sse - sse2) / (sse2 / df2) if sse2 > 0 and df2 > 0 else 0.0
+    p_reset = float(stats.f.sf(max(F, 0), 1, df2)) if df2 > 0 else np.nan
+    gain = (res.sse - sse2) / res.sst if res.sst > 0 else 0.0
+    order = np.argsort(res.fitted, kind="stable")
+    runs, p_runs = _runs_p(res.resid[order] > 0)
+    tests = {"RESET de Ramsey (F)": (float(F), p_reset), "rachas de signos": (float(runs), p_runs)}
+    if (p_reset < 0.01 and gain > 0.02) or (not np.isnan(p_runs) and p_runs < 0.01 and gain > 0.01):
+        sev, txt = "fail", (f"Los residuos muestran un patrón curvo: agregar un término cuadrático reduce el error en {gain * 100:.1f}% de la "
+                            "variación total. La combinación lineal de las X no captura la forma de la relación.")
+    elif p_reset < 0.05 or (not np.isnan(p_runs) and p_runs < 0.05):
+        sev, txt = "warn", "Hay señales leves de curvatura; revise el gráfico de residuos contra valores ajustados."
+    else:
+        sev, txt = "ok", "No se detecta curvatura sistemática: la forma lineal es una descripción razonable."
+    remedy = "Transformar alguna X (ln, √), transformar Y o agregar términos cuadráticos / interacciones." if sev != "ok" else ""
+    return Check("linealidad", "Linealidad", sev, tests, txt, remedy)
+
+
+def m_check_independence(res, ordered: bool) -> Check:
+    name = "Independencia de los errores"
+    if not ordered:
+        return Check("independencia", name, "na", {},
+                     "Los datos no tienen un orden temporal declarado, por lo que la autocorrelación no se puede probar. "
+                     "Verifique que no haya mediciones repetidas del mismo sujeto, lugar o periodo.",
+                     "Si las filas son una serie de tiempo, indique la columna de fecha para activar la prueba.")
+    e = res.resid
+    n = len(e)
+    if n < res.k + 12:
+        return Check("independencia", name, "na", {}, "Muy pocas observaciones.")
+    dw = float(((e[1:] - e[:-1]) ** 2).sum() / (e @ e))
+    X = np.column_stack([np.ones(n - 1), res.X[1:], e[:-1]])
+    beta, *_ = np.linalg.lstsq(X, e[1:], rcond=None)
+    fit = X @ beta
+    sst = float(((e[1:] - e[1:].mean()) ** 2).sum())
+    r2 = 1 - float(((e[1:] - fit) ** 2).sum()) / sst if sst > 0 else 0.0
+    lm = (n - 1) * r2
+    p_bg = float(stats.chi2.sf(lm, 1))
+    rho = float(np.corrcoef(e[1:], e[:-1])[0, 1])
+    tests = {"Durbin-Watson": (dw, np.nan), "Breusch-Godfrey (orden 1)": (lm, p_bg), "autocorrelación lag 1": (rho, np.nan)}
+    if p_bg < 0.01 or dw < 1.2 or dw > 2.8:
+        sev, txt = "fail", (f"Los errores consecutivos están correlacionados (DW = {dw:.2f}, ρ = {rho:.2f}). "
+                            "Los errores estándar y p-valores resultan demasiado optimistas.")
+    elif p_bg < 0.05 or dw < 1.5 or dw > 2.5:
+        sev, txt = "warn", f"Indicios leves de autocorrelación (DW = {dw:.2f})."
+    else:
+        sev, txt = "ok", f"Sin autocorrelación relevante (DW = {dw:.2f}, cercano a 2)."
+    remedy = ("Use un modelo de series de tiempo (rezagos de Y, errores AR/ARIMA), incluya la tendencia o trabaje con diferencias."
+              if sev != "ok" else "")
+    return Check("independencia", name, sev, tests, txt, remedy)
+
+
+def m_check_homoscedasticity(res) -> Check:
+    n, k = res.n, res.k
+    if n < k + 10:
+        return Check("homocedasticidad", "Homocedasticidad", "na", {}, "Muy pocas observaciones.")
+    e2 = res.resid ** 2
+    lm_bp, p_bp = _lm_test(e2, np.column_stack([np.ones(n), res.X]), k)
+    f = res.fitted - res.fitted.mean()
+    lm_w, p_w = _lm_test(e2, np.column_stack([np.ones(n), f, f ** 2]), 2)
+    order = np.argsort(res.fitted)
+    g = max(n // 3, 3)
+    sd_lo, sd_hi = float(res.resid[order[:g]].std(ddof=1)), float(res.resid[order[-g:]].std(ddof=1))
+    ratio = sd_hi / sd_lo if sd_lo > 0 else np.inf
+    tests = {"Breusch-Pagan": (lm_bp, p_bp), "White (sobre Ŷ y Ŷ²)": (lm_w, p_w), "razón de desv. est. (tercio alto/bajo de Ŷ)": (ratio, np.nan)}
+    if min(p_bp, p_w) < 0.01:
+        sev, txt = "fail", (f"La dispersión de los residuos cambia con el nivel estimado (desv. est. del tercio alto ≈ {ratio:.2f}× la del bajo). "
+                            "Los intervalos de predicción dejan de ser confiables.")
+    elif min(p_bp, p_w) < 0.05:
+        sev, txt = "warn", "Hay señales moderadas de varianza no constante."
+    else:
+        sev, txt = "ok", "La dispersión de los errores es aproximadamente constante."
+    remedy = ("Transformar Y (p. ej. logaritmo), usar mínimos cuadrados ponderados o interpretar con errores estándar robustos (HC3, ya calculados)."
+              if sev != "ok" else "")
+    return Check("homocedasticidad", "Homocedasticidad", sev, tests, txt, remedy)
+
+
+def m_check_multicollinearity(res) -> Check:
+    name = "Multicolinealidad (VIF)"
+    vif = res.vif
+    worst = max(vif, key=lambda c: vif[c])
+    vmax = vif[worst]
+    tests = {f"VIF de {c}": (float(v), np.nan) for c, v in vif.items()}
+    if vmax > 10:
+        sev, txt = "fail", (f"«{worst}» se solapa casi por completo con las otras X (VIF = {vmax:.1f} > 10). Los coeficientes individuales se vuelven "
+                            "inestables: pueden cambiar de signo o perder significancia aunque el modelo prediga bien.")
+    elif vmax > 5:
+        sev, txt = "warn", f"«{worst}» comparte bastante información con las otras X (VIF = {vmax:.1f}, entre 5 y 10). Interprete sus coeficientes con cautela."
+    else:
+        sev, txt = "ok", f"Las X aportan información distinta entre sí (VIF máximo = {vmax:.2f})."
+    remedy = "Retire una de las variables redundantes, combínelas en un índice o elija el modelo con menos variables." if sev != "ok" else ""
+    return Check("multicolinealidad", name, sev, tests, txt, remedy)
+
+
+def m_check_influence(res) -> Check:
+    from .multiple import fit_mlr
+    n = res.n
+    thr = 4 / n
+    infl = res.cooks > thr
+    n_inf = int(infl.sum())
+    dmax = float(res.cooks.max())
+    change = np.nan
+    if 0 < n_inf <= max(1, int(0.1 * n)) and n - n_inf >= res.k + 5:
+        try:
+            r2 = fit_mlr(pd.DataFrame(res.X[~infl], columns=res.x_names), res.y[~infl])
+            base = np.abs(res.beta[1:])
+            rel = np.where(base > 0, (r2.beta[1:] - res.beta[1:]) / np.where(base > 0, base, 1) * 100, 0.0)
+            sig = res.p[1:] < res.alpha                                   # solo importan los coeficientes que se interpretan
+            pool = rel[sig] if sig.any() else rel
+            change = float(pool[np.argmax(np.abs(pool))])
+        except Exception:
+            pass
+    tests = {"Cook máx.": (dmax, np.nan), "obs. con Cook > 4/n": (float(n_inf), np.nan)}
+    if not np.isnan(change):
+        tests["mayor cambio % de un coeficiente sin ellas"] = (change, np.nan)
+    if dmax > 1 or (not np.isnan(change) and abs(change) > 30):
+        sev, txt = "fail", (f"Pocas observaciones determinan el ajuste (Cook máx. {dmax:.2f}"
+                            + (f"; quitarlas cambia un coeficiente {change:+.0f}%" if not np.isnan(change) else "") + ").")
+    elif n_inf / n > 0.08 or (not np.isnan(change) and abs(change) > 15):
+        sev, txt = "warn", (f"{n_inf} observaciones con influencia alta"
+                            + (f"; algún coeficiente cambia {change:+.0f}% sin ellas." if not np.isnan(change) else "."))
+    else:
+        sev, txt = "ok", "Ninguna observación domina el ajuste."
+    remedy = ("Verifique si son errores de captura o casos especiales; compare el modelo con y sin ellas o use regresión robusta."
+              if sev != "ok" else "")
+    return Check("influencia", "Observaciones influyentes", sev, tests, txt, remedy)
+
+
+def run_diagnostics_multi(res, ordered: bool = False) -> Diagnostics:
+    checks = [m_check_linearity(res), m_check_independence(res, ordered), m_check_homoscedasticity(res),
+              check_normality(res), m_check_multicollinearity(res), m_check_influence(res)]
+    d = Diagnostics(checks=checks)
+    core = [c for c in checks if c.key in {"linealidad", "independencia", "homocedasticidad", "normalidad"} and c.severity != "na"]
+    fails = [c for c in core if c.severity == "fail"]
+    warns = [c for c in core if c.severity == "warn"]
+    extra_fail = [c for c in checks if c.key in {"influencia", "multicolinealidad"} and c.severity == "fail"]
+    if d.get("linealidad").severity == "fail" or len(fails) >= 2:
+        d.verdict = "no confiable"
+    elif fails or extra_fail or len(warns) >= 2:
+        d.verdict = "con reservas"
+    else:
+        d.verdict = "apto"
+    names = lambda cs: ", ".join(c.name.lower() for c in cs)
+    d.summary = {
+        "apto": "Los supuestos principales se cumplen razonablemente; la inferencia es confiable.",
+        "con reservas": f"Úselo con cautela. Incumplimientos o reservas en: {names(fails + warns + extra_fail)}.",
+        "no confiable": f"Los supuestos no se sostienen ({names(fails)}). Las estimaciones puntuales pueden orientar, "
+                        "pero los intervalos y p-valores no son confiables.",
+    }[d.verdict]
+    return d

@@ -50,7 +50,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-Se abrirá `http://localhost:8501`. Compruebe: (a) en el módulo 1 cargue **«Banca · monto de crédito aprobado (1000 registros)»**,
+Se abrirá `http://localhost:8501`. Compruebe: (a) en el módulo 1 (*Carga de datos*) abra «¿No tiene datos a la mano?» y cargue **«Banca · monto de crédito aprobado (1000 registros)»**,
 (b) recorra los módulos hasta el 8. Para cerrar, `Ctrl + C` en la terminal.
 
 *(Opcional)* correr las pruebas automáticas:
@@ -96,16 +96,14 @@ git status
 **4.3. Confirme y suba:**
 
 ```powershell
-git commit -m "App de regresion lineal simple: interfaz Streamlit, bases de prueba y despliegue"
+git commit -m "App de regresion lineal multiple: interfaz Streamlit, bases de prueba y despliegue"
 git push origin main
 ```
 
 La primera vez, Git puede abrir una ventana para iniciar sesión en GitHub. Al terminar, entre a
 `https://github.com/velandiaivan640-droid/app-regresion-multiple` y confirme que ve `app.py`, `core/`, `ui/`, `requirements.txt`.
 
-> **Opcional, pero conviene hacerlo ANTES de desplegar:** el repositorio se llama *«regresion-multiple»* y la app es de regresión **simple**.
-> En GitHub → *Settings* → *Repository name* puede renombrarlo (p. ej. `app-regresion-simple`). Hágalo antes de crear la app en
-> Streamlit: renombrar después puede romper el enlace entre ambos.
+> **Para actualizar la app ya publicada** (`regresion-multiple.streamlit.app`) no hay que crear nada nuevo: basta con subir los cambios a la rama `main` de GitHub (sección 7) y Streamlit Community Cloud la reconstruye sola en 1–3 minutos.
 
 ---
 
@@ -123,7 +121,7 @@ La primera vez, Git puede abrir una ventana para iniciar sesión en GitHub. Al t
    | **Repository** | `velandiaivan640-droid/app-regresion-multiple` (o el nuevo nombre si lo renombró) |
    | **Branch** | `main` |
    | **Main file path** | `app.py` |
-   | **App URL** | un nombre libre, p. ej. `regresion-simple` → quedará `https://regresion-simple.streamlit.app` |
+   | **App URL** | un nombre libre, p. ej. `regresion-multiple` → quedará `https://regresion-multiple.streamlit.app` |
 
 6. Pulse **Advanced settings** y en **Python version** elija **3.12**. Deje *Secrets* vacío (la app no usa claves). Pulse **Save**.
 
@@ -141,12 +139,12 @@ La primera vez, Git puede abrir una ventana para iniciar sesión en GitHub. Al t
 
 Haga esta lista en la URL pública:
 
-- [ ] Módulo 1 → seleccione **«Salud · costo de hospitalización (1000 registros)»** → *Cargar ejemplo*.
-- [ ] Módulo 2: aparecen **1.000 registros**, 10 duplicados y las columnas con su tipo.
-- [ ] Módulos 3 a 8 abren sin error. En el 8 debe ver el veredicto y los gráficos de diagnóstico.
-- [ ] Módulo 10: mueva el deslizador; al salir del rango observado aparece la alerta de **extrapolación**.
+- [ ] Módulo 1 → «¿No tiene datos a la mano?» → **«Salud · costo de hospitalización (1000 registros)»** → *Cargar ejemplo*: aparecen **1.000 registros**, 10 duplicados y las columnas con su tipo.
+- [ ] Módulo 2 (*Qué dicen sus datos*): explica de qué trata la tabla y sugiere `costo_total_millones` como variable a estimar.
+- [ ] Módulos 3 a 8 abren sin error. En el 7 todos los modelos tienen **2 o más variables**; en el 8 debe ver el veredicto, el VIF y los gráficos de diagnóstico.
+- [ ] Módulo 10: mueva los deslizadores (uno por variable); al salir del rango observado aparece la alerta de **extrapolación**.
 - [ ] Módulo 12: descargue el informe HTML.
-- [ ] Módulo 2 → cargue un CSV propio (por ejemplo `sample_data/cartera_credito.csv` desde su computador).
+- [ ] Módulo 1 → cargue un CSV propio (por ejemplo `sample_data/ventas_restaurante.csv`): sin escribir nada, la app debe sugerir `Bowls` como Y.
 
 ---
 

@@ -50,10 +50,10 @@ class Report:
 
     def to_html(self) -> str:
         css = ("body{font-family:Segoe UI,Arial,sans-serif;max-width:900px;margin:32px auto;padding:0 20px;color:#1f2937;line-height:1.55}"
-               "h1{color:#0f3d5e;border-bottom:3px solid #0f3d5e;padding-bottom:8px}h2{color:#0f3d5e;margin-top:32px}"
-               "table{border-collapse:collapse;width:100%;font-size:13px;margin:12px 0}th{background:#0f3d5e;color:#fff;text-align:left}"
-               "th,td{padding:6px 8px;border:1px solid #d1d5db}tr:nth-child(even){background:#f3f6f9}"
-               ".c{padding:10px 14px;border-left:4px solid #3b82f6;background:#eff6ff;margin:12px 0}"
+               "h1{color:#134e4a;border-bottom:3px solid #0f766e;padding-bottom:8px}h2{color:#134e4a;margin-top:32px}"
+               "table{border-collapse:collapse;width:100%;font-size:13px;margin:12px 0}th{background:#115e59;color:#fff;text-align:left}"
+               "th,td{padding:6px 8px;border:1px solid #d1d5db}tr:nth-child(even){background:#f1f7f5}"
+               ".c{padding:10px 14px;border-left:4px solid #0f766e;background:#ecf7f4;margin:12px 0}"
                ".c.warn{border-color:#f59e0b;background:#fffbeb}.c.bad{border-color:#dc2626;background:#fef2f2}.c.ok{border-color:#16a34a;background:#f0fdf4}"
                ".m{color:#6b7280;font-size:12px}")
         e = html.escape

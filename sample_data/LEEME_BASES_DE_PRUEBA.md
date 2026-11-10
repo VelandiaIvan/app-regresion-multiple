@@ -12,7 +12,7 @@ hospitales ni bancos reales. Cada una trae *suciedad* y *trampas* a propósito p
 | **Fechas** | `fecha_ingreso` (2024-2025, ordenada) | `fecha_desembolso` (2023-2025, ordenada) |
 | **Codificación** | UTF-8 con BOM (Excel muestra bien las tildes) | UTF-8 con BOM |
 
-Se abren con doble clic en Excel, y también están en el selector de ejemplos del módulo 1 de la app (que además precarga el contexto de negocio).
+Se abren con doble clic en Excel, y también están en el selector de ejemplos del módulo 1 de la app (*Carga de datos*).
 
 ## Columnas y trampas
 
@@ -47,7 +47,7 @@ Se abren con doble clic en Excel, y también están en el selector de ejemplos d
 
 ## Receta de prueba, módulo por módulo
 
-1. **Módulo 1** → elija el ejemplo → *Cargar ejemplo*. Se precarga el contexto de negocio.
+1. **Módulo 1** → «¿No tiene datos a la mano?» → elija el ejemplo → *Cargar ejemplo*. En el **módulo 2** la app explica los datos y sugiere la variable Y.
 2. **Módulo 2** → confirme 1.000 filas, 10 duplicados y las inconsistencias (valores negativos).
 3. **Módulo 5** → la app debe recomendar **la Y de la tabla** (no la variable con fuga).
 4. **Módulo 6** → `costo_facturado_eps_millones` / `monto_desembolsado_millones` aparecen con **riesgo de fuga alto** y sin marcar; `cuota_mensual_millones` con riesgo medio.
@@ -80,3 +80,10 @@ python sample_data/generate.py
 ```
 
 Las funciones `salud_hospitalario()` y `banca_credito()` están en `sample_data/generate.py`; cambie la semilla (`seed`) para obtener otra versión.
+
+
+## `ventas_restaurante.csv` (archivo real de práctica, 186 registros)
+
+Cuatro columnas separadas por `;` y con coma decimal: `Bowl Price` (precio del plato), `Bowls` (platos vendidos), `Soda` y `Beer` (bebidas vendidas).
+No tiene contexto escrito: sirve para comprobar que la app, por sí sola, sugiere **`Bowls`** como variable a estimar y arma un modelo múltiple
+(`Soda + Bowl Price`, R² ajustado ≈ 0,76; el precio tiene coeficiente negativo). Cárguelo desde el módulo 1 con «Upload».

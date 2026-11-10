@@ -16,8 +16,8 @@ SIGN_BACK = {None: "sin expectativa", 1: "positivo (+)", -1: "negativo (−)"}
 def render() -> None:
     ss = st.session_state
     C.hero("Módulo 6", "Variables independientes (X)",
-           "Se construirá un modelo simple independiente por cada candidata. Antes, se hace una preselección usando SOLO el conjunto de "
-           "entrenamiento (así la elección de variables no «espía» los datos de prueba) y se combinan correlación, significancia, calidad de datos y sentido de negocio.")
+           "Elija las variables candidatas: la aplicación probará combinaciones de DOS O MÁS a la vez y se quedará con la mejor. La preselección usa SOLO el "
+           "conjunto de entrenamiento (así la elección no «espía» los datos de prueba).")
     C.need(state.has_data(), "Primero cargue los datos.", "m02_datos")
     C.need(bool(ss.y), "Defina primero la variable Y.", "m05_y")
 
@@ -47,6 +47,10 @@ def render() -> None:
     if not cands:
         st.error("No hay variables numéricas utilizables como X. Revise el módulo 3 (por ejemplo, codifique categóricas).")
         st.stop()
+    if len(cands) < 2:
+        st.error(f"Solo hay una variable numérica utilizable como X («{cands[0]}»). La regresión MÚLTIPLE necesita al menos 2: agregue columnas "
+                 "al archivo o convierta variables categóricas en indicadoras 0/1 en el módulo 3.")
+        st.stop()
     corr = eda.correlation_table(train, md.y_col, cands)
     expected = {k: v["sign"] for k, v in ss.x_meta.items() if v.get("sign")}
     rank = context.rank_predictor_candidates(md.df.loc[md.train_idx], md.y_source, cls, ss.ctx, corr, expected)
@@ -56,8 +60,8 @@ def render() -> None:
 
     st.markdown("#### Candidatas (calculado solo con entrenamiento)")
     prev_sel = set(ss.x_cands)
-    default_sel = prev_sel or set(rank[(rank["riesgo_fuga"] != "alta") & (rank["p_valor"] < 0.10)].head(5)["variable"])
-    if not default_sel:
+    default_sel = prev_sel or set(rank[rank["riesgo_fuga"] != "alta"].head(8)["variable"])   # el modelo decide cuáles aportan
+    if len(default_sel) < 2:
         default_sel = set(rank.head(3)["variable"])
     ed = rank[["variable", "puntaje_preliminar", "pearson_r", "spearman_rho", "p_valor", "riesgo_fuga", "a_favor", "alertas"]].copy()
     ed.insert(0, "usar", ed["variable"].isin(default_sel))
@@ -67,7 +71,7 @@ def render() -> None:
         ed, hide_index=True, key=f"m6_editor_{abs(hash(str(ss._md_sig))) % 10**8}",
         disabled=["variable", "puntaje_preliminar", "pearson_r", "spearman_rho", "p_valor", "riesgo_fuga", "a_favor", "alertas"],
         column_config={
-            "usar": st.column_config.CheckboxColumn("Usar", help="Se construirá un modelo con esta variable"),
+            "usar": st.column_config.CheckboxColumn("Usar", help="Candidata a entrar en el modelo múltiple"),
             "puntaje_preliminar": st.column_config.ProgressColumn("Puntaje prelim.", min_value=0, max_value=100, format="%.0f"),
             "pearson_r": st.column_config.NumberColumn("r", format="%.3f"), "spearman_rho": st.column_config.NumberColumn("ρ", format="%.3f"),
             "p_valor": st.column_config.NumberColumn("p", format="%.3g"),
@@ -83,11 +87,9 @@ def render() -> None:
         ok = st.checkbox(f"Confirmo que «{r['variable']}» se conoce ANTES de estimar Y y no se calcula a partir de Y", value=r["variable"] in ss.leak_cleared,
                          key=f"m6_leak_{r['variable']}")
         (ss.leak_cleared.add if ok else ss.leak_cleared.discard)(r["variable"])
-    ss.include_transforms = st.toggle("Evaluar también ln(X) y √X como variantes de cada candidata", ss.include_transforms,
-                                      help="Permite detectar relaciones curvas que una recta no captura. Aumenta el número de modelos comparados.")
     C.how_to_read("El **puntaje preliminar** pondera: fuerza de la relación (35), significancia (15), calidad y cantidad de datos (15), sentido de negocio (15: la mencionó "
                   "como factor o es una palanca típica), coherencia con el signo esperado (10) y forma lineal (10). Resta si hay riesgo de fuga. **No es solo la correlación más alta**: "
-                  "una variable con correlación 0,99 casi siempre es una consecuencia de Y, no una explicación.")
+                  "una variable con correlación 0,99 casi siempre es una consecuencia de Y, no una explicación. Marque todas las que tengan sentido: el siguiente paso descarta las que no aportan al combinarlas.")
     top3 = [c for c in ss.x_cands][:3]
     if top3:
         st.markdown("#### Vista rápida de las primeras seleccionadas (entrenamiento)")
@@ -95,7 +97,9 @@ def render() -> None:
         for c, v in zip(cols, top3):
             with c:
                 C.chart(charts.scatter_eda(train, v, md.y_col, loess=True), f"m6_sc_{v}")
-    if not ss.x_cands:
-        st.warning("Seleccione al menos una variable para continuar.")
+    if len(ss.x_cands) < 2:
+        st.warning("Seleccione al menos DOS variables: un modelo de regresión múltiple combina 2 o más X.")
     else:
-        C.next_step(f"Construir modelos con {len(ss.x_cands)} candidata(s) ▶", "m07_modelos")
+        n_comb = 2 ** len(ss.x_cands) - len(ss.x_cands) - 1
+        st.caption(f"Con {len(ss.x_cands)} candidatas hay {n_comb:,} combinaciones posibles de 2 o más variables; la aplicación las evalúa y compara las mejores.")
+        C.next_step(f"Construir modelos múltiples con {len(ss.x_cands)} candidatas ▶", "m07_modelos")

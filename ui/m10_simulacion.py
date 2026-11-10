@@ -1,98 +1,91 @@
-"""Módulo 10 · Simulación de escenarios y estimaciones."""
+"""Módulo 10 · Simulación de escenarios con varias variables a la vez."""
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 
-from core import simulation as sim_
+from core import simulation_multi as sim_
 from ui import charts
 from ui import components as C
 from ui.m09_interpretacion import chosen_model
+
+RANGO = {"dentro": "✔ dentro", "leve": "⚠ extrap. leve", "severa": "🛑 extrap. severa"}
 
 
 def render() -> None:
     ss = st.session_state
     C.hero("Módulo 10", "Simulación de escenarios y estimaciones",
-           "Mueva X y vea cómo cambia el valor estimado de Y, con su incertidumbre y alertas cuando se sale del rango que los datos respaldan.")
+           "Elija un valor para cada variable y vea el resultado estimado, con su incertidumbre y alertas cuando se sale de lo que los datos respaldan.")
     cm, md = chosen_model()
     res = cm.res
-    xu, yu = ss.units.get("x", ""), ss.units.get("y", "")
-    xl, yl = res.x_source, res.y_source
+    yu, yl = ss.units.get("y", ""), res.y_name
     if ss.cmp.recommendation.status == "no confiable":
         C.callout("Este modelo fue calificado como <b>no confiable</b>: las simulaciones son solo ilustrativas.", "bad")
     lvl = int(round((1 - res.alpha) * 100))
+    hib = ss.ctx.y_higher_is_better
 
-    q = np.quantile(res.x_obs, [0.10, 0.25, 0.5, 0.75, 0.90])
-    C.kpis([("Mínimo observado de X", f"{res.x_min:,.4g}"), ("P10", f"{q[0]:,.4g}"), ("Mediana", f"{q[2]:,.4g}"), ("P90", f"{q[4]:,.4g}"),
-            ("Máximo observado de X", f"{res.x_max:,.4g}", xu)])
-    if ss.ctx.restricciones.strip():
-        st.caption(f"Reglas de negocio declaradas: {ss.ctx.restricciones.strip()}  — el modelo no las aplica automáticamente; verifíquelas al elegir valores.")
+    with st.expander("Rangos observados de cada variable", expanded=False):
+        C.table(res.x_stats(), 4)
 
     st.markdown("#### Escenarios pesimista · base · optimista")
-    mode = st.radio("Cómo se definen", ["Rango observado (P10 / mediana / P90)", "Valores definidos por usted"], horizontal=True)
-    hib = ss.ctx.y_higher_is_better
-    if mode.startswith("Rango"):
-        scen = sim_.scenario_values(res, hib)
-    else:
-        base_def = sim_.scenario_values(res, hib)
-        c = st.columns(3)
-        scen = {}
-        for col, k in zip(c, ["pesimista", "base", "optimista"]):
-            scen[k] = col.number_input(f"X {k}", value=float(base_def[k]), key=f"sc_{k}_{cm.key}", format="%.6g")
+    scen = sim_.scenario_values(res, hib)
     rows = []
-    for k, xv in scen.items():
-        p = res.predict([xv]).iloc[0]
-        ex = sim_.extrapolation_status(res, xv)
-        rows.append({"escenario": k, "X": xv, "Y estimado": p["y_est"], f"IC {lvl}% inf": p["ic_inf"], f"IC {lvl}% sup": p["ic_sup"],
-                     f"IP {lvl}% inf": p["ip_inf"], f"IP {lvl}% sup": p["ip_sup"], "rango": {"dentro": "✔ dentro", "leve": "⚠ extrap. leve", "severa": "🛑 extrap. severa"}[ex.status]})
-    st.dataframe(pd.DataFrame(rows), hide_index=True)
+    for name, vals in scen.items():
+        p = res.predict(vals).iloc[0]
+        ex = sim_.extrapolation_status(res, vals)
+        rows.append({"escenario": name, **{c: vals[c] for c in res.x_names}, f"{yl} estimado": p["y_est"], f"IC {lvl}% inf": p["ic_inf"],
+                     f"IC {lvl}% sup": p["ic_sup"], f"IP {lvl}% inf": p["ip_inf"], f"IP {lvl}% sup": p["ip_sup"], "rango": RANGO[ex.status]})
+    C.table(pd.DataFrame(rows), 5)
     ss["last_scen"], ss["last_scen_key"] = scen, cm.key
-    st.caption(f"Pesimista = el X que produce el peor resultado (aquí un {yl} {'menor' if hib else 'mayor'} es peor). IC = intervalo del promedio; IP = intervalo de una observación individual.")
+    st.caption(f"Base = cada variable en su mediana. Pesimista / optimista = cada variable en su P10 o P90, según el signo de su coeficiente "
+               f"(aquí un {yl} {'menor' if hib else 'mayor'} es peor). IC = intervalo del promedio; IP = intervalo de un caso individual.")
 
     st.markdown("#### Simulación interactiva")
-    c1, c2 = st.columns([1, 2])
-    base_name = c1.selectbox("Escenario de partida", list(scen), index=list(scen).index("base"))
-    x_base = float(scen[base_name])
-    lo_g, hi_g = res.x_min - 0.4 * (res.x_max - res.x_min), res.x_max + 0.4 * (res.x_max - res.x_min)
-    if res.x_transform in {"ln", "sqrt", "ln1p", "inv"}:
-        lo_g = max(lo_g, res.x_min * 0.3 if res.x_min > 0 else 1e-6)
-    with c2:
-        ctrl = st.radio("Control de X simulado", ["Deslizador", "Valor exacto"], horizontal=True, key="m10_ctrl")
-        key_x = f"m10_x_{cm.key}"
-        if ctrl == "Deslizador":
-            x_new = st.slider(f"{xl} simulado ({xu})" if xu else f"{xl} simulado", float(lo_g), float(hi_g), float(np.clip(x_base * 1.1, lo_g, hi_g)),
-                              step=float((hi_g - lo_g) / 400), key=key_x + "_s", format="%.6g")
-        else:
-            x_new = st.number_input(f"{xl} simulado", value=float(x_base * 1.1), key=key_x + "_n", format="%.6g")
-        st.caption(f"Rango observado: [{res.x_min:,.4g}; {res.x_max:,.4g}]. La zona naranja del gráfico es extrapolación.")
-    sim = sim_.simulate(res, x_base, x_new)
+    base_name = st.selectbox("Escenario de partida", list(scen), index=list(scen).index("base"))
+    base = scen[base_name]
+    st.caption("Mueva una o varias variables. Las que no toque se quedan en el valor del escenario de partida.")
+    new = {}
+    cols = st.columns(min(3, res.k))
+    for j, c in enumerate(res.x_names):
+        lo, hi = res.x_range(c)
+        with cols[j % len(cols)]:
+            if res.is_binary(c):
+                new[c] = float(st.radio(c, [0, 1], index=int(round(base[c])), horizontal=True, key=f"m10_{cm.key}_{base_name}_{c}",
+                                        format_func=lambda v: "1 (sí)" if v == 1 else "0 (no)"))
+            else:
+                span = hi - lo
+                new[c] = float(st.slider(c, float(lo - 0.25 * span), float(hi + 0.25 * span), float(base[c]), step=float(span / 200) or None,
+                                         key=f"m10_{cm.key}_{base_name}_{c}", format="%.6g", help=f"Observado: de {lo:,.4g} a {hi:,.4g}"))
+    sim = sim_.simulate(res, base, new)
     ss["last_sim"], ss["last_sim_key"] = sim, cm.key
-    for ex, lab in ((sim["extrap_new"], "simulado"),):
-        if ex.status == "leve":
-            st.warning(ex.message)
-        elif ex.status == "severa":
-            st.error(ex.message)
-        else:
-            st.success(ex.message)
-    C.kpis([(f"{yl} estimado · base", f"{sim['y_base']:,.4g}", f"X = {sim['x_base']:,.4g}"),
-            (f"{yl} estimado · simulado", f"{sim['y_new']:,.4g}", f"X = {sim['x_new']:,.4g}"),
+    ex = sim["extrap_new"]
+    (st.success if ex.status == "dentro" else st.warning if ex.status == "leve" else st.error)(ex.message)
+    C.kpis([(f"{yl} · partida", f"{sim['y_base']:,.4g}", base_name), (f"{yl} · simulado", f"{sim['y_new']:,.4g}", yu),
             ("Variación absoluta", f"{sim['dy']:+,.4g}", yu),
-            ("Variación porcentual", f"{sim['dy_pct']:+.1f}%" if not np.isnan(sim["dy_pct"]) else "n/a", f"X cambia {sim['dx_pct']:+.1f}%" if not np.isnan(sim["dx_pct"]) else "")])
-    st.dataframe(pd.DataFrame([
-        {"": "Base", "X": sim["x_base"], "Ŷ": sim["y_base"], f"IC {lvl}%": f"[{sim['base_ci'][0]:,.4g}; {sim['base_ci'][1]:,.4g}]",
-         f"IP {lvl}%": f"[{sim['base_pi'][0]:,.4g}; {sim['base_pi'][1]:,.4g}]"},
-        {"": "Simulado", "X": sim["x_new"], "Ŷ": sim["y_new"], f"IC {lvl}%": f"[{sim['new_ci'][0]:,.4g}; {sim['new_ci'][1]:,.4g}]",
-         f"IP {lvl}%": f"[{sim['new_pi'][0]:,.4g}; {sim['new_pi'][1]:,.4g}]"}]), hide_index=True)
-    C.callout(sim_.interpret_simulation(res, sim, xl, yl), "info", "Interpretación")
-    C.chart(charts.scenario_chart(res, scen, sim), "m10_chart")
-    C.how_to_read("**Estimación puntual:** el mejor valor único de Y. **Intervalo de confianza:** dónde estaría el *promedio* de muchos casos con ese X. "
-                  "**Intervalo de predicción:** dónde caería *un caso individual*. Para presupuestar usted querría el primero; para prometer un resultado a un cliente, el segundo.")
+            ("Variación porcentual", f"{sim['dy_pct']:+.1f}%" if not np.isnan(sim["dy_pct"]) else "n/a"),
+            (f"IP {lvl}% del simulado", f"{sim['new_pi'][0]:,.4g} – {sim['new_pi'][1]:,.4g}", "donde caería un caso individual")])
+    C.callout(sim_.interpret_simulation(res, sim), "info", "Interpretación")
+    moved = sim["contrib"][sim["contrib"]["cambio_X"].abs() > 1e-12]
+    if len(moved):
+        st.markdown("**Aporte de cada cambio** (efecto de mover solo esa variable)")
+        C.table(moved, 4)
 
-    st.markdown("#### ¿Qué X necesito para alcanzar una meta de Y?")
-    default_target = float(np.mean(res.y_obs))
-    tgt = st.number_input(f"Meta de {yl}", value=default_target, format="%.6g", key=f"m10_tgt_{cm.key}")
-    inv = sim_.required_x(res, tgt)
+    st.markdown("#### Efecto de una variable (las demás fijas)")
+    var = st.selectbox("Variable a recorrer", res.x_names, key=f"m10_var_{cm.key}")
+    cv = sim_.partial_curve(res, var, new)
+    pts = [dict(name="partida", x=base[var], y=float(res.predict({**new, var: base[var]})["y_est"].iloc[0]), color=charts.BLUE),
+           dict(name="simulado", x=new[var], y=sim["y_new"], color=charts.INK)]
+    C.chart(charts.partial_effect_chart(cv, var, yl, lvl, pts, res.x_range(var)), "m10_chart")
+    C.how_to_read("La línea muestra cómo cambia la estimación al mover **solo** esa variable, dejando las demás en los valores simulados. "
+                  "**Banda oscura:** dónde estaría el *promedio* de muchos casos. **Banda clara:** dónde caería *un caso individual*. "
+                  "La zona sombreada en ámbar es extrapolación.")
+
+    st.markdown(f"#### ¿Qué valor necesito para alcanzar una meta de {yl}?")
+    c1, c2 = st.columns(2)
+    tgt = c1.number_input(f"Meta de {yl}", value=float(np.mean(res.y_obs)), format="%.6g", key=f"m10_tgt_{cm.key}")
+    lever = c2.selectbox("Variable que puedo mover", res.x_names, key=f"m10_lever_{cm.key}")
+    inv = sim_.required_x(res, tgt, lever, new)
     (st.success if inv["ok"] and not inv["extrap"].is_extrapolation else st.warning)(inv["message"])
-    st.caption("Es una aproximación: se despeja X de la recta estimada. No es una garantía y hereda todas las limitaciones del modelo (asociación, no causalidad).")
+    st.caption("Es un despeje de la ecuación con las demás variables fijas en los valores simulados. No es una garantía: hereda las limitaciones del modelo.")
     C.next_step("Continuar: análisis de sensibilidad ▶", "m11_sensibilidad")

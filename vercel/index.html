@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Asistente de Regresión Lineal Simple</title>
-<meta name="description" content="Asistente de ciencia de datos para modelar y estimar con regresión lineal simple.">
+<title>Asistente de Regresión Lineal Múltiple</title>
+<meta name="description" content="Asistente de ciencia de datos para modelar y estimar con regresión lineal múltiple.">
 <style>
   :root{
     --bg:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --line:#e1e0d9;
@@ -50,7 +50,7 @@
 <!--
   ============================== CONFIGURACIÓN (lo único que debe editar) ==============================
   Pegue entre las comillas la URL pública de su app en Streamlit Community Cloud, SIN "?embed=true"
-  (el código lo agrega). Ejemplo:  const APP_URL = "https://regresion-simple.streamlit.app";
+  (el código lo agrega). Ejemplo:  const APP_URL = "https://regresion-multiple.streamlit.app";
   =======================================================================================================
 -->
 <script>
@@ -60,7 +60,7 @@
 <header>
   <span class="logo" aria-hidden="true">📈</span>
   <div class="grow">
-    <h1>Asistente de Regresión Lineal Simple</h1>
+    <h1>Asistente de Regresión Lineal Múltiple</h1>
     <p>Modele, estime y simule · datos procesados en la aplicación</p>
   </div>
   <a id="open" class="btn" href="#" target="_blank" rel="noopener noreferrer" hidden>Abrir en pestaña nueva ↗</a>
@@ -115,7 +115,7 @@
   src.searchParams.set("embed", "true");        // modo incrustado oficial de Streamlit (apps públicas)
 
   var frame = document.createElement("iframe");
-  frame.title = "Asistente de Regresión Lineal Simple";
+  frame.title = "Asistente de Regresión Lineal Múltiple";
   frame.src = src.href;
   frame.setAttribute("allow", "clipboard-write; fullscreen");
   frame.addEventListener("load", function () {

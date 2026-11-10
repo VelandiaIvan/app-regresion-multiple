@@ -1,4 +1,4 @@
-"""Módulo 13 · Centro de aprendizaje: regresión lineal simple."""
+"""Módulo 13 · Centro de aprendizaje: regresión lineal (de la simple a la múltiple)."""
 from __future__ import annotations
 
 import numpy as np
@@ -46,8 +46,8 @@ def _demo() -> None:
 
 
 def render() -> None:
-    C.hero("Módulo 13", "Centro de aprendizaje · regresión lineal simple",
-           "19 conceptos con definición sencilla, explicación técnica, ejemplo empresarial, interpretación y utilidad práctica. Más un laboratorio interactivo.")
+    C.hero("Módulo 13", "Centro de aprendizaje · regresión lineal",
+           "25 conceptos con definición sencilla, explicación técnica, ejemplo empresarial, interpretación y utilidad práctica. Más un laboratorio interactivo.")
     tab_c, tab_l = st.tabs(["Conceptos", "Laboratorio interactivo"])
     with tab_c:
         q = st.text_input("Buscar un concepto", placeholder="p. ej. residuos, p-valor, extrapolación…")

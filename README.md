@@ -1,111 +1,108 @@
-# Asistente de Regresión Lineal Simple
+# Asistente de Regresión Lineal Múltiple
 
-Aplicación interactiva (Streamlit) para **explicar relaciones entre dos variables y estimar valores cuantitativos** con regresión lineal simple,
-adaptada al contexto de cualquier negocio. Combina tres enfoques: *estadístico* (construcción y validación), *empresarial* (el contexto orienta qué
-variables considerar) y *educativo* (cada resultado viene explicado).
+Aplicación interactiva (Streamlit) para **estimar un resultado numérico con dos o más variables a la vez** mediante regresión lineal múltiple.
+Usted carga un archivo y la aplicación hace el resto: explica de qué tratan los datos, propone la variable a estimar (Y), prueba las combinaciones
+de variables explicativas (X), elige el mejor modelo y lo interpreta en lenguaje sencillo.
 
-> Probado con Python 3.12 y 3.14 y las versiones exactas de `requirements.txt` (Streamlit 1.67, pandas 3.0, numpy 2.4, scipy 1.17, statsmodels 0.14, plotly 6.7).
-> **Desplegar en internet:** vea [`DESPLIEGUE.md`](DESPLIEGUE.md). Vercel **no** puede ejecutar Streamlit; el manual explica por qué y usa Streamlit Community Cloud.
-> **¿Quiere una dirección en Vercel?** [`MANUAL_VERCEL.html`](MANUAL_VERCEL.html) (ábralo con doble clic) explica cómo publicar en Vercel una página que *muestra* la app alojada en Streamlit; la página ya está lista en [`vercel/`](vercel/).
+> **Proyecto académico** de Ivan Alonso Velandia Duarte ([VelandiaIvan](https://github.com/VelandiaIvan)), estudiante de la Maestría en Analítica de Datos.
+> No es un producto comercial: los resultados tienen fines educativos y no constituyen asesoría profesional. La app no guarda los archivos cargados;
+> aun así, use datos de ejemplo o anonimizados. Parte del código se generó y revisó con herramientas de inteligencia artificial.
+
+> Probado con Python 3.12 y las versiones exactas de `requirements.txt` (Streamlit 1.67, pandas 3.0, numpy 2.4, scipy 1.17, statsmodels 0.14, plotly 6.7).
+> **Desplegar o actualizar en internet:** vea [`DESPLIEGUE.md`](DESPLIEGUE.md) (Streamlit Community Cloud).
+
+## En qué se diferencia de la app de regresión simple
+
+| | Regresión simple | **Esta app (múltiple)** |
+|---|---|---|
+| Modelo | Un modelo por cada X: `Ŷ = β0 + β1·X` | Combinaciones de **2 o más X**: `Ŷ = β0 + β1·X1 + β2·X2 + …` |
+| Mejor modelo | La mejor variable individual | La mejor **combinación**, con todas sus variables aportando |
+| Inicio | Formulario de negocio de 8 campos | **Se cargan los datos primero**; la app los explica y sugiere Y. El contexto escrito es opcional (2 preguntas) |
+| Diagnósticos | 4 supuestos + influencia | Los mismos **+ multicolinealidad (VIF)** y R² ajustado |
+| Simulación | Se mueve una X | Se mueve **cada X por separado**; descomposición del efecto y «tornado» de sensibilidad |
+| Colores | Azul | Verde azulado / ámbar |
 
 ## Instalación y uso
 
 ```bash
-cd app_regresion
 python -m pip install -r requirements.txt
 python -m streamlit run app.py
 ```
 
-Se abre en `http://localhost:8501`. Para empezar sin datos propios, en el **Módulo 1** elija un caso de ejemplo (9 sectores, datos *sintéticos*)
-y pulse «Cargar ejemplo». Para usar sus datos: Módulo 2 → cargue un **CSV, TXT, XLS o XLSX**.
-Dos bases de **1.000 registros** (salud y banca) y su guía de prueba están en [`sample_data/LEEME_BASES_DE_PRUEBA.md`](sample_data/LEEME_BASES_DE_PRUEBA.md).
+Se abre en `http://localhost:8501`. En el **módulo 1** cargue un **CSV, TXT, XLS o XLSX** (una fila por caso, una columna por variable; se necesita
+una columna numérica a estimar y al menos dos más que la expliquen) o pruebe uno de los 9 casos de ejemplo sintéticos.
 
 ```bash
-python sample_data/generate.py                        # regenera los archivos de ejemplo
 python -m pip install -r requirements-dev.txt         # una sola vez
-python -m pytest tests -q                             # pruebas automáticas
+python -m pytest tests -q                             # 79 pruebas automáticas
 ```
 
 ## Los 13 módulos
 
 | # | Módulo | Qué hace |
 |---|---|---|
-| 1 | Problema de negocio | Texto libre (sector, core, problema, resultado, factores, restricciones, pregunta). Resume lo que «entendió» y orienta Y y X. |
-| 2 | Carga y exploración | TXT/CSV/XLS/XLSX; detecta separador, codificación, coma decimal, fechas, encabezado desplazado. Primeras 5 filas, tipos, duplicados, atípicos, inconsistencias, descriptivas. |
-| 3 | Preparación | Faltantes (mapa, % y patrón), imputación **recomendada y evaluada** (media/mediana/moda/ffill/interpolación), atípicos, transformaciones, codificación, bitácora y antes/después. |
-| 4 | Análisis exploratorio | Distribuciones, frecuencias, dispersión con LOWESS, Pearson y Spearman, linealidad vs. curvatura, tendencias y estacionalidad, lectura de negocio. |
-| 5 | Variable Y | Ranking explicable de candidatas; usted confirma. Revisión de Y y transformación opcional (ln, √). |
-| 6 | Variables X | Partición entrenamiento/prueba; preselección **solo con entrenamiento**; signo esperado y «se conoce antes»; alerta de fuga de información. |
-| 7 | Modelos | Un modelo simple por candidata (y por variantes ln/√): β0, β1, r, R², R² ajustado, RMSE, MAE, EE, t, p, F, IC; recta con IC y IP; residuos. |
-| 8 | Evaluación | Comparación con datos de prueba y validación cruzada (LOOCV), supuestos con semáforo, puntaje multicriterio, recomendación y alternativas. |
-| 9 | Interpretación | Intercepto y pendiente: técnica y en lenguaje sencillo, viabilidad, ejemplos con datos reales. |
-| 10 | Simulación | Escenarios pesimista/base/optimista, X interactivo, comparación base vs. simulado, IC e IP, alertas de extrapolación, «¿qué X necesito para esta meta?». |
-| 11 | Sensibilidad | ±5 %, ±10 % y valores propios; elasticidad; interpretación para el negocio. |
-| 12 | Informe ejecutivo | Hallazgos, calidad, estimaciones, riesgos y recomendaciones accionables. Descarga en HTML, Markdown y Excel. |
-| 13 | Centro de aprendizaje | 19 conceptos (definición sencilla, técnica, ejemplo, interpretación, utilidad) y un laboratorio interactivo. |
+| 1 | Carga de datos | TXT/CSV/XLS/XLSX; detecta separador, codificación, coma decimal y fechas. Tipos, duplicados, atípicos, descriptivas. Incluye los ejemplos. |
+| 2 | Qué dicen sus datos | **Lectura automática**: tema de la tabla, qué parece medir cada columna, calidad, y **variable Y sugerida con sus razones**. Contexto opcional. |
+| 3 | Preparación | Faltantes, imputación recomendada y evaluada, atípicos, transformaciones, codificación de categóricas (dummies), bitácora. |
+| 4 | Análisis exploratorio | Distribuciones, dispersión, correlaciones de Pearson y Spearman, linealidad, patrones en el tiempo. |
+| 5 | Variable Y | Confirmar la variable a estimar y revisar su distribución (se modela en su propia escala). |
+| 6 | Variables X | Partición entrenamiento/prueba; candidatas (mínimo 2); signo esperado, «se conoce antes» y alerta de fuga de información. |
+| 7 | Modelos | Combinaciones de 2+ variables: coeficientes, EE, t, p, IC, β estandarizado, VIF, R² ajustado, F; comparación contra cada X por sí sola. |
+| 8 | Evaluación | Datos de prueba y validación cruzada (LOOCV), supuestos con semáforo (incluye VIF), puntaje multicriterio, recomendación y alternativas. |
+| 9 | Interpretación | Cada coeficiente «manteniendo constantes las demás», peso relativo de las variables, ejemplos con datos reales. |
+| 10 | Simulación | Escenarios pesimista/base/optimista, un control por variable, aporte de cada cambio, IC e IP, alertas de extrapolación, meta inversa. |
+| 11 | Sensibilidad | Qué variable mueve más a Y (tornado ±10 %) y detalle ±5 %, ±10 % o valores propios, una variable a la vez. |
+| 12 | Informe ejecutivo | Hallazgos, calidad, estimaciones, riesgos y recomendaciones. Descarga en HTML, Markdown y Excel. |
+| 13 | Centro de aprendizaje | 25 conceptos (de la regresión simple a la múltiple: efecto parcial, R² ajustado, VIF, selección de variables, dummies) y un laboratorio. |
 
 ## Arquitectura
 
 ```
-app.py                  navegación por módulos, tema, configuración global
-core/                   MOTOR (Python puro, sin Streamlit, probado de forma independiente)
-  loader.py             lectura de archivos y detección de formatos
-  profiling.py          tipos, duplicados, atípicos, inconsistencias, descriptivas
-  cleaning.py           plan de limpieza reproducible (CleaningPlan) y aplicación anti-fuga
-  eda.py                correlaciones, linealidad, patrones temporales
-  context.py            contexto de negocio → sugerencia de Y/X y riesgo de fuga
-  regression.py         MCO simple con fórmulas explícitas, IC/IP, Cook, PRESS, HC3
-  diagnostics.py        linealidad, independencia, homocedasticidad, normalidad, influencia
-  comparison.py         partición, un modelo por candidata, puntaje y recomendación
-  simulation.py         escenarios, sensibilidad, extrapolación, regresión inversa
-  interpretation.py     lectura de β0 y β1 (lin-lin, log-lin, lin-log, log-log)
-  report.py             informe ejecutivo (Markdown/HTML)
-  education.py          contenido del centro de aprendizaje
-ui/                     una página por módulo + gráficos Plotly + componentes + estado
-sample_data/            generador de datasets sintéticos y sus contextos de negocio
-vercel/                 página estática (index.html + vercel.json) que muestra la app dentro de Vercel
-MANUAL_VERCEL.html      manual paso a paso para publicar esa página (se abre con doble clic)
-tests/                  motor, validación contra statsmodels, 7 sectores, humo de interfaz
+app.py                     navegación por módulos, tema, configuración global
+core/                      MOTOR (Python puro, sin Streamlit, probado de forma independiente)
+  loader.py                lectura de archivos y detección de formatos
+  profiling.py             tipos, duplicados, atípicos, inconsistencias, descriptivas
+  cleaning.py              plan de limpieza reproducible y aplicación anti-fuga
+  eda.py                   correlaciones, linealidad, patrones temporales
+  understanding.py         «¿de qué tratan los datos?»: tema, papel de cada columna, explicación de la Y sugerida
+  context.py               ranking de candidatas a Y (incluye «qué columna se explica mejor con las demás») y riesgo de fuga
+  multiple.py              MCO matricial: β=(XᵀX)⁻¹Xᵀy, EE, t, p, IC, F, R² ajustado, VIF, Cook, PRESS, HC3, IC/IP de predicción
+  selection.py             búsqueda de combinaciones de 2+ variables, puntaje multicriterio, parsimonia y recomendación
+  diagnostics.py           RESET, Breusch-Pagan/White, Shapiro, Durbin-Watson/Breusch-Godfrey, VIF, influencia
+  interpretation_multi.py  efectos parciales, importancia relativa, lenguaje sencillo
+  simulation_multi.py      escenarios, simulación multivariable, sensibilidad, tornado, meta inversa
+  report_multi.py          informe ejecutivo (Markdown/HTML)
+  regression.py, comparison.py, simulation.py, interpretation.py, report.py
+                           regresión simple: se conserva como base (partición, métricas) y referencia
+  education.py             contenido del centro de aprendizaje
+ui/                        una página por módulo + gráficos Plotly + componentes + estado
+sample_data/               datasets sintéticos de ejemplo y un archivo real de práctica (ventas_restaurante.csv)
+tests/                     motor (validado contra statsmodels), selección, 9 sectores y humo de interfaz
 ```
 
-## Decisiones metodológicas (por qué se comporta así)
+## Cómo se elige el mejor modelo
 
-- **Sin fuga de información.** La partición entrenamiento/prueba se hace *antes* de calcular medias, medianas, límites de atípicos o categorías: esas estadísticas
-  se calculan solo con entrenamiento. La selección preliminar de X también usa solo entrenamiento. Con menos de 25 observaciones no se reserva prueba y se
-  usa validación cruzada «dejando uno fuera» (PRESS, cerrada en regresión simple).
-- **Y nunca se imputa.** Las filas sin Y se descartan; Y también está protegida de recortes.
-- **No se elige por R².** El puntaje (0–100) combina capacidad predictiva en datos nuevos (40), supuestos (20), coherencia con el negocio (15), significancia (15)
-  y calidad de datos (10), con penalizaciones por posible fuga, sobreajuste e influencia. Si hay un R² mayor que se descartó, la app explica por qué.
-- **Fuga de información.** Una X con |r| ≥ 0,98 con Y, o que comparte concepto con Y y |r| ≥ 0,9, se marca y no se recomienda salvo que usted confirme que se conoce *antes*.
-- **Honestidad.** Los estados son «recomendado», «con reservas» (p. ej. predice bien pero la inferencia es optimista por autocorrelación) y «no confiable»
-  (R² < 0,10, casi sin mejora frente al promedio, curvatura, supuestos rotos). En ese caso se sugieren alternativas en vez de forzar un modelo.
-- **IC vs. IP.** Se distinguen siempre: intervalo de confianza del promedio e intervalo de predicción de una observación individual.
-- **Transformaciones.** ln(Y) o √Y se modelan en su escala y los resultados vuelven a la escala original (factor de Duan para ln; intervalos por transformación monótona).
-- **El contexto de negocio NO usa un LLM.** Cruza el texto con los nombres de columna (raíces, sinónimos multisectoriales y coincidencia literal). Es una heurística
-  explicable, no una comprensión semántica profunda: la decisión final es siempre suya.
+1. **Se apartan** las variables que no estarán disponibles al decidir y las que tienen riesgo alto de fuga de información (|r| ≥ 0,98 con Y).
+2. Con hasta 9 candidatas se evalúan **todas las combinaciones de 2 o más**; con más, selección paso a paso (adelante y atrás).
+3. Cada combinación se mide con validación cruzada «dejando uno fuera», usando solo datos de entrenamiento.
+4. Las finalistas se ajustan completas y reciben un **puntaje (0–100)**: capacidad predictiva con datos nuevos (40), supuestos incluida la
+   multicolinealidad (20), significancia global y de cada coeficiente (15), coherencia con el negocio (15) y calidad de datos (10); se restan puntos por
+   cada variable sin efecto significativo, por sobreajuste, VIF > 10 y observaciones muy influyentes.
+5. **No se elige por R²** (siempre ganaría el modelo con más variables). Si dos modelos quedan a menos de 1 punto, gana el de menos variables.
+6. El estado final es «recomendado», «con reservas» o «no confiable», con sus razones y alternativas.
 
-## Pruebas
+## Otras decisiones metodológicas
 
-| Archivo | Qué verifica |
-|---|---|
-| `test_data_engine.py` | Carga (CSV/TXT con coma decimal/Excel con encabezado desplazado/.xls), perfilado, anti-fuga en limpieza, AED. |
-| `test_regression.py` | Coeficientes, EE, t, p, F, R², IC, IP, Cook, PRESS y HC3 **idénticos a statsmodels**; Breusch-Pagan, White, Durbin-Watson. |
-| `test_pipeline_datasets.py` | 9 sectores de extremo a extremo: fuga (retail), heterocedasticidad (logística), autocorrelación (energía), log-log (inmobiliario), costo fijo (manufactura), curvatura (agro), ausencia de relación (satisfacción), y las bases de 1.000 registros de **salud** y **banca** (fugas, cuota posterior, valores imposibles, y mejora real al limpiar). |
-| `test_ui_smoke.py` | Recorre los 13 módulos con cada dataset, partición temporal y 99 % de confianza sin excepciones. |
-
-## Cómo extenderla
-
-- **Nuevo método estadístico:** agregue una función en `core/` que devuelva un objeto con la misma interfaz que `SLRResult` (`predict`, `coef_table`, `equation`)
-  y regístrelo en `comparison.build_candidate`. Los módulos de interfaz solo consumen esa interfaz.
-- **Regresión múltiple:** el motor está pensado para una X por modelo; para varias X, extienda `regression.fit_slr` a MCO matricial y `diagnostics` (la mayoría de
-  las pruebas ya son válidas con más columnas).
-- **Nuevo sector:** no requiere código; basta con describir el negocio en el Módulo 1 y cargar los datos.
-- **Sinónimos de negocio:** `core/context.py → SYNONYM_GROUPS`.
+- **Sin fuga de información:** la partición entrenamiento/prueba se hace antes de calcular estadísticas de limpieza. **Y nunca se imputa.**
+- **Sugerencia de Y sin texto:** combina qué tan bien se explica cada columna con las demás (45), si su nombre es un resultado típico (20), calidad
+  de datos (20) y conexión con otras variables (15). Un precio que se mueve en sentido contrario al resto se trata como factor, no como resultado.
+- **Sin modelo de lenguaje:** el «entendimiento» de los datos es léxico y estadístico (diccionario de conceptos + tipos + correlaciones). Es una guía explicable.
+- **IC vs. IP:** siempre se distingue el intervalo de confianza del promedio y el de predicción de un caso individual.
 
 ## Limitaciones conocidas
 
-- Los datos de ejemplo son simulados; no representan negocios reales.
-- La detección de contexto es léxica: si los nombres de columna no se parecen a la descripción, el ranking depende más de la calidad de los datos.
-- Un solo factor explicativo por modelo (por diseño). La app avisa cuándo conviene pasar a regresión múltiple.
-- No se probó con pandas 2.x ni con Python distinto de 3.14.
-- Los archivos `.xls` requieren `xlrd`; archivos con celdas combinadas o varias tablas por hoja pueden necesitar limpieza previa.
+- Los datos de ejemplo son simulados. `ventas_restaurante.csv` es un archivo de práctica de clase.
+- Solo relaciones lineales entre las X y Y; las curvaturas se detectan y se sugiere transformar en el módulo de preparación. No incluye interacciones automáticas.
+- Las variables categóricas deben codificarse (módulo 3) para entrar al modelo.
+- Con muchas variables y pocos datos los coeficientes son inestables: regla práctica, 10–15 observaciones por variable.
+- Los coeficientes describen asociaciones, no causalidad.

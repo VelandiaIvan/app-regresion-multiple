@@ -21,3 +21,10 @@ frontend/node_modules/
 frontend/.next/
 backend/venv/
 backend/__pycache__/
+
+# --- Archivos personales / de trabajo que no hacen parte de la app ---
+/MAOSBASE.csv
+/precios_viviendas.csv
+avatar/
+frontend/
+backend/
