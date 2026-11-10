@@ -47,10 +47,11 @@ SYNONYM_GROUPS: list[set[str]] = [
     {"fertilizante", "abono", "insumo"},
     {"peso", "carga", "tonelada", "kg", "weight"},
     {"estrato", "nivel", "categoria", "segmento"},
+    {"monto", "desembolso", "desembolsado", "aprobado", "cuota", "prestamo", "credito"},
 ]
 CONCEPT_OF = {tok: i for i, g in enumerate(SYNONYM_GROUPS) for tok in g}
 # Conceptos que típicamente son «resultados» del negocio (candidatos a Y)
-OUTCOME_CONCEPTS = {0, 1, 2, 3, 4, 8, 13, 14, 15, 17}
+OUTCOME_CONCEPTS = {0, 1, 2, 3, 4, 8, 13, 14, 15, 17, 22}
 # Conceptos que típicamente son «palancas» o factores (candidatos a X)
 DRIVER_CONCEPTS = {5, 6, 7, 9, 10, 11, 12, 16, 18, 19, 20, 21}
 UNIT_WORDS = {"millon", "mil", "miles", "pct", "porcentaje", "percent", "cop", "usd", "total", "num", "numero",
@@ -80,7 +81,8 @@ def concepts(toks: list[str]) -> set:
 
 
 def column_concepts(col: str) -> set:
-    return concepts([stem(t) for t in name_tokens(col)])
+    # los dígitos del nombre (rangos «0_10», años) no son conceptos
+    return concepts([stem(t) for t in name_tokens(col) if not t.isdigit()])
 
 
 @dataclass
@@ -100,7 +102,9 @@ class BusinessContext:
                          self.factores, self.restricciones, self.pregunta])
 
     def target_text(self) -> str:
-        return " ".join([self.objetivo_y, self.pregunta])
+        # La pregunta de negocio suele mencionar también los factores («¿la espera explica la satisfacción?»):
+        # solo se usa para identificar Y cuando el usuario no declaró explícitamente el resultado a estimar.
+        return self.objetivo_y if self.objetivo_y.strip() else self.pregunta
 
     def filled_fields(self) -> int:
         return sum(bool(v.strip()) for v in (self.sector, self.actividad, self.core, self.problema,
@@ -122,7 +126,12 @@ def mention_score(col: str, text: str) -> float:
     tc = concepts(tokens(text))
     if not cc:
         return 0.0
-    return len(cc & tc) / len(cc)
+    concept_match = len(cc & tc) / len(cc)
+    # coincidencia LITERAL de las palabras de la columna con las del texto: desempata sinónimos
+    # (si el usuario escribió «ventas», «ventas_millones» debe superar a «ingresos_netos_millones»)
+    lit = {stem(t) for t in name_tokens(col) if not t.isdigit()} - UNIT_WORDS
+    literal_match = len(lit & set(tokens(text))) / len(lit) if lit else 0.0
+    return 0.5 * concept_match + 0.5 * literal_match if concept_match > 0 else 0.5 * literal_match
 
 
 def interpret_context(ctx: BusinessContext, columns: list[str]) -> dict:
@@ -146,21 +155,32 @@ def interpret_context(ctx: BusinessContext, columns: list[str]) -> dict:
 # ----------------------------------------------------------------------------
 # riesgo de fuga de información
 # ----------------------------------------------------------------------------
-def leakage_risk(x_name: str, y_name: str, r: float) -> tuple[str, str]:
-    """('alta'|'media'|'ninguna', explicación). Se evalúa con r de entrenamiento."""
+def leakage_risk(x_name: str, y_name: str, r: float, declared_factor: bool = False) -> tuple[str, str]:
+    """('alta'|'media'|'ninguna', explicación). Se evalúa con r de entrenamiento.
+
+    `declared_factor`: el usuario declaró explícitamente X como factor explicativo (Módulo 1). Eso exime del riesgo MEDIO
+    (conocimiento de dominio: p. ej. el ingreso del cliente es un dato de entrada, no un resultado), pero nunca del ALTO.
+    """
     if np.isnan(r):
         return "ninguna", ""
     a = abs(r)
     cx, cy = column_concepts(x_name), column_concepts(y_name)
-    shared = {c for c in cx & cy if isinstance(c, int)} | {c for c in cx & cy if isinstance(c, str)}
+    shared = cx & cy
     if a >= 0.98:
         return "alta", (f"|r| = {a:.3f}: la relación es casi perfecta. Suele indicar que X es una forma contable, derivada "
                         "o consecuencia de Y (fuga de información), no una causa.")
     if shared and a >= 0.9:
         return "alta", ("Comparte concepto con Y (nombres equivalentes) y la correlación es muy alta: probablemente mide lo mismo "
                         "en otra escala o definición.")
-    out_x = any(isinstance(c, int) and c in OUTCOME_CONCEPTS for c in cx)
-    out_y = any(isinstance(c, int) and c in OUTCOME_CONCEPTS for c in cy)
+    if declared_factor:
+        return "ninguna", ""
+    if shared and a >= 0.6:
+        return "media", ("Comparte concepto con Y (p. ej. monto y cuota, ventas e ingresos) y la correlación es alta: puede calcularse "
+                         "DESPUÉS de conocer Y. Verifique que se conozca antes de necesitar estimarlo.")
+    # «resultado» solo si TODOS los conceptos informativos del nombre lo son: «ingresos_netos» sí, «ingreso_mensual_cliente» no
+    # (ahí «cliente» es una característica del solicitante, conocida antes de decidir).
+    out_x = bool(cx) and all(isinstance(c, int) and c in OUTCOME_CONCEPTS for c in cx)
+    out_y = bool(cy) and all(isinstance(c, int) and c in OUTCOME_CONCEPTS for c in cy)
     if out_x and out_y and a >= 0.8:
         return "media", ("X y Y parecen ambos RESULTADOS del negocio (p. ej. ingresos y costos). Verifique que X se conozca ANTES "
                          "de necesitar estimar Y; si no, el modelo no se podrá usar para decidir.")
@@ -239,7 +259,7 @@ def rank_predictor_candidates(df: pd.DataFrame, y: str, classes: pd.DataFrame, c
         exp = expected_sign.get(c)
         coherent = 0.5 if not exp else (1.0 if np.sign(r["pearson_r"]) == exp else 0.0)
         lin = 0.5 if "curvatura" in r["alertas"] else 1.0
-        leak, leak_msg = leakage_risk(c, y, r["pearson_r"])
+        leak, leak_msg = leakage_risk(c, y, r["pearson_r"], declared_factor=mention >= 0.5)
         score = (35 * strength + 15 * sig + 15 * completeness * size_ok + 15 * biz + 10 * coherent + 10 * lin)
         score -= {"alta": 40, "media": 15, "ninguna": 0}[leak]
         pos, neg = [], []

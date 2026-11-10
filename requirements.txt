@@ -1,0 +1,11 @@
+# Dependencias EXACTAS con las que se probó la app (Python 3.12 y 3.14).
+# Streamlit Community Cloud lee UN solo archivo de dependencias: no agregue environment.yml, Pipfile ni pyproject.toml.
+# No escriba la versión de Python aquí: se elige en "Advanced settings" al desplegar.
+streamlit==1.67.0
+pandas==3.0.2
+numpy==2.4.4
+scipy==1.17.1
+statsmodels==0.14.6
+plotly==6.7.0
+openpyxl==3.1.5
+xlrd==2.0.2

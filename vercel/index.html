@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asistente de Regresión Lineal Simple</title>
+<meta name="description" content="Asistente de ciencia de datos para modelar y estimar con regresión lineal simple.">
+<style>
+  :root{
+    --bg:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --line:#e1e0d9;
+    --brand:#184f95; --brand2:#2a78d6; --warn-bg:#fff7e0; --warn:#eda100;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0d0d0d; --surface:#1a1a19; --ink:#f0efec; --ink2:#c3c2b7; --line:#2c2c2a;
+           --brand:#3987e5; --brand2:#6da7ec; --warn-bg:#2b2410; --warn:#c98500; }
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{display:flex;flex-direction:column;background:var(--bg);color:var(--ink);
+       font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface);
+         border-bottom:1px solid var(--line)}
+  header .logo{font-size:22px;line-height:1}
+  header h1{font-size:1rem;margin:0;font-weight:650;letter-spacing:-.01em}
+  header p{margin:0;font-size:.78rem;color:var(--ink2)}
+  header .grow{flex:1;min-width:0}
+  header a.btn{white-space:nowrap;text-decoration:none;font-size:.85rem;font-weight:600;color:#fff;
+               background:var(--brand);padding:7px 13px;border-radius:8px}
+  header a.btn:hover{filter:brightness(1.1)}
+  header a.btn:focus-visible{outline:3px solid var(--brand2);outline-offset:2px}
+  main{flex:1;position:relative;min-height:0}
+  iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--surface)}
+  .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+           gap:14px;background:var(--bg);color:var(--ink2);font-size:.95rem;text-align:center;padding:24px;transition:opacity .3s}
+  .overlay.hide{opacity:0;pointer-events:none}
+  .spin{width:34px;height:34px;border-radius:50%;border:4px solid var(--line);border-top-color:var(--brand2);animation:s 1s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spin{animation-duration:3s}}
+  .help{font-size:.78rem;color:var(--ink2);padding:6px 16px;background:var(--surface);border-top:1px solid var(--line);text-align:center}
+  .help a{color:var(--brand)}
+  .card{max-width:620px;margin:8vh auto;padding:24px 26px;background:var(--warn-bg);border-left:5px solid var(--warn);
+        border-radius:10px;line-height:1.55}
+  .card code{background:rgba(127,127,127,.18);padding:1px 6px;border-radius:5px;font-size:.9em}
+  .card h2{margin:0 0 8px;font-size:1.15rem}
+  [hidden]{display:none !important}
+</style>
+</head>
+<body>
+
+<!--
+  ============================== CONFIGURACIÓN (lo único que debe editar) ==============================
+  Pegue entre las comillas la URL pública de su app en Streamlit Community Cloud, SIN "?embed=true"
+  (el código lo agrega). Ejemplo:  const APP_URL = "https://regresion-simple.streamlit.app";
+  =======================================================================================================
+-->
+<script>
+  const APP_URL = "https://TU-APP.streamlit.app";
+</script>
+
+<header>
+  <span class="logo" aria-hidden="true">📈</span>
+  <div class="grow">
+    <h1>Asistente de Regresión Lineal Simple</h1>
+    <p>Modele, estime y simule · datos procesados en la aplicación</p>
+  </div>
+  <a id="open" class="btn" href="#" target="_blank" rel="noopener noreferrer" hidden>Abrir en pestaña nueva ↗</a>
+</header>
+
+<main id="stage">
+  <div id="notice" class="card" hidden>
+    <h2>⚙️ Falta un paso: configurar la dirección de la app</h2>
+    <p>Abra el archivo <code>vercel/index.html</code>, busque la línea <code>const APP_URL = "https://TU-APP.streamlit.app";</code>
+       y reemplace la dirección por la URL pública de su app en Streamlit Community Cloud (sin <code>?embed=true</code>).
+       Luego guarde el archivo y vuelva a desplegar.</p>
+    <p>Consulte el <strong>paso 4</strong> del manual <code>MANUAL_VERCEL.html</code>.</p>
+  </div>
+  <div id="loading" class="overlay" hidden>
+    <div class="spin" role="status" aria-label="Cargando"></div>
+    <div>Cargando la aplicación…<br><small>La primera visita puede tardar unos segundos si la app estaba en reposo.</small></div>
+  </div>
+</main>
+
+<div class="help" id="help" hidden>
+  ¿Ve una pantalla en blanco o un error? Abra la app directamente con el botón <strong>«Abrir en pestaña nueva»</strong>.
+</div>
+
+<noscript>
+  <div class="card"><h2>Se necesita JavaScript</h2>
+  <p>Active JavaScript en su navegador para ver la aplicación en esta página.</p></div>
+</noscript>
+
+<script>
+(function () {
+  var stage = document.getElementById("stage");
+  var notice = document.getElementById("notice");
+  var loading = document.getElementById("loading");
+  var help = document.getElementById("help");
+  var openBtn = document.getElementById("open");
+
+  // Valida que la URL esté configurada y sea https (evita iframes a direcciones inesperadas)
+  var url = null;
+  try {
+    var u = new URL(APP_URL);
+    if (u.protocol === "https:" && u.hostname.toUpperCase().indexOf("TU-APP") === -1) url = u;
+  } catch (e) { /* URL inválida */ }
+
+  if (!url) { notice.hidden = false; return; }
+
+  openBtn.href = url.href;
+  openBtn.hidden = false;
+  help.hidden = false;
+  loading.hidden = false;
+
+  var src = new URL(url.href);
+  src.searchParams.set("embed", "true");        // modo incrustado oficial de Streamlit (apps públicas)
+
+  var frame = document.createElement("iframe");
+  frame.title = "Asistente de Regresión Lineal Simple";
+  frame.src = src.href;
+  frame.setAttribute("allow", "clipboard-write; fullscreen");
+  frame.addEventListener("load", function () {
+    loading.classList.add("hide");
+    setTimeout(function () { loading.hidden = true; }, 400);
+  });
+  stage.insertBefore(frame, loading);
+  setTimeout(function () { loading.classList.add("hide"); }, 25000);   // no dejar el aviso para siempre
+})();
+</script>
+</body>
+</html>

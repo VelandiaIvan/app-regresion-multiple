@@ -146,6 +146,91 @@ def servicio_satisfaccion(seed: int = 7) -> pd.DataFrame:
     })
 
 
+def salud_hospitalario(seed: int = 8) -> pd.DataFrame:
+    """Salud: costo de hospitalización. 1000 registros (990 únicos + 10 duplicados exactos).
+
+    Relación principal: costo ↔ días de estancia (multiplicativa → mejora con logaritmos y es heterocedástica).
+    Trampas: `costo_facturado_eps_millones` ≈ 0,94 × costo (fuga), 2 estancias negativas (error de captura),
+    6 casos de costo extremo, faltantes en edad / IMC / procedimientos.
+    """
+    rng = np.random.default_rng(seed)
+    n = 990
+    fecha = pd.Timestamp("2024-01-01") + pd.to_timedelta(np.sort(rng.integers(0, 730, n)), unit="D")
+    servicio = rng.choice(["Medicina interna", "Cirugía general", "Ortopedia", "Cardiología", "Pediatría", "Ginecología"],
+                          n, p=[.28, .20, .15, .15, .12, .10])
+    edad = np.where(servicio == "Pediatría", rng.integers(0, 15, n),
+                    np.where(servicio == "Ginecología", rng.integers(18, 50, n), np.clip(rng.normal(58, 17, n), 18, 95).round()))
+    compl = rng.choice([1, 2, 3, 4], n, p=[.35, .35, .20, .10])
+    comorb = np.clip(rng.poisson(0.3 + 0.03 * np.clip(edad - 30, 0, None)), 0, 6)
+    quir = np.isin(servicio, ["Cirugía general", "Ortopedia", "Cardiología", "Ginecología"])
+    lam = 1.2 + 1.3 * compl + 0.5 * comorb + 0.8 * quir
+    dias = np.clip(np.round(rng.gamma(3.0, lam / 3.0)), 1, 45)
+    proc = np.clip(rng.poisson(np.where(quir, 0.4 + 0.55 * compl, 0.1 + 0.25 * compl)), 0, 8)
+    mult = pd.Series(servicio).map({"Cardiología": 1.25, "Cirugía general": 1.10, "Ortopedia": 1.05, "Medicina interna": 1.0,
+                                    "Ginecología": 0.95, "Pediatría": 0.80}).to_numpy()
+    base = (0.9 + 0.62 * dias + 1.15 * proc + 0.012 * edad + 0.25 * compl) * mult
+    costo = base * np.exp(rng.normal(0, 0.16, n))
+    costo[rng.choice(n, 6, replace=False)] *= 2.4                                  # casos de costo extremo
+    df = pd.DataFrame({
+        "id_paciente": [f"P{i:05d}" for i in range(1, n + 1)], "fecha_ingreso": fecha, "servicio": servicio,
+        "tipo_afiliacion": rng.choice(["Contributivo", "Subsidiado", "Particular"], n, p=[.55, .35, .10]),
+        "edad": edad.astype(float), "comorbilidades": comorb, "nivel_complejidad": compl,
+        "indice_masa_corporal": np.clip(rng.normal(26.5, 4.5, n), 14, 48).round(1),
+        "dias_estancia": dias, "num_procedimientos": proc.astype(float),
+        "costo_total_millones": costo.round(3),
+    })
+    df["costo_facturado_eps_millones"] = (df["costo_total_millones"] * 0.94 + rng.normal(0, 0.05, n)).round(3)   # FUGA
+    df.loc[rng.choice(n, 2, replace=False), "dias_estancia"] = -1                   # error de captura
+    for col, frac in (("edad", 0.03), ("indice_masa_corporal", 0.08), ("num_procedimientos", 0.02)):
+        df[col] = _holes(rng, df[col], frac)
+    df = pd.concat([df, df.sample(10, random_state=seed)], ignore_index=True)       # 10 duplicados exactos
+    return df.sort_values("fecha_ingreso", kind="stable").reset_index(drop=True)
+
+
+def banca_credito(seed: int = 9) -> pd.DataFrame:
+    """Banca: monto de crédito aprobado. 1000 registros (990 únicos + 10 duplicados exactos).
+
+    Relación principal: monto ↔ ingreso mensual (lineal, heterocedástica: más dispersión a mayores ingresos), con efecto menor del
+    score, la deuda vigente y el plazo; el monto tiene tope de política (120 millones).
+    Trampas: `monto_desembolsado_millones` ≈ monto (fuga), `cuota_mensual_millones` se calcula DESPUÉS del monto,
+    3 ingresos con error de digitación (×6), 2 ingresos negativos, faltantes en ingreso / score / antigüedad / deuda.
+    """
+    rng = np.random.default_rng(seed)
+    n = 990
+    fecha = pd.Timestamp("2023-01-01") + pd.to_timedelta(np.sort(rng.integers(0, 1095, n)), unit="D")
+    anios = ((fecha - pd.Timestamp("2023-01-01")).days.to_numpy()) / 365.25
+    segmento = rng.choice(["Empleado", "Independiente", "Pensionado", "Empresario"], n, p=[.50, .20, .20, .10])
+    med = pd.Series(segmento).map({"Empleado": 4.5, "Independiente": 5.0, "Pensionado": 3.8, "Empresario": 12.0}).to_numpy()
+    ingreso = np.clip(med * np.exp(rng.normal(0, 0.42, n)) * (1 + 0.04 * anios), 1.4, None).round(2)
+    antig = np.clip(rng.gamma(2.5, 3.2, n), 0, 40).round(1)
+    score = np.clip(rng.normal(690, 85, n) + 4 * np.clip(antig, 0, 15), 300, 900).round()
+    deuda = (ingreso * rng.gamma(2.0, 0.9, n)).round(1)
+    plazo = rng.choice([12, 24, 36, 48, 60, 72], n, p=[.10, .20, .25, .20, .15, .10])
+    sd = 0.6 + 0.30 * ingreso
+    monto = 2.0 + 4.2 * ingreso + 0.035 * (score - 650) - 0.45 * deuda + 0.06 * plazo + rng.normal(0, 1, n) * sd
+    monto = np.clip(monto, 2, 120).round(1)                                         # tope de política
+    tasa = np.clip(34 - 0.022 * (score - 600) + rng.normal(0, 2.0, n), 12, 42).round(2)
+    i_m = (1 + tasa / 100) ** (1 / 12) - 1
+    cuota = (monto * i_m / (1 - (1 + i_m) ** (-plazo))).round(3)
+    df = pd.DataFrame({
+        "id_credito": [f"C{i:05d}" for i in range(1, n + 1)], "fecha_desembolso": fecha, "segmento": segmento,
+        "ciudad": rng.choice(["Bogotá", "Medellín", "Cali", "Manizales", "Barranquilla", "Bucaramanga"], n, p=[.30, .22, .16, .10, .12, .10]),
+        "edad": np.clip(rng.normal(42, 11, n), 21, 75).round(), "ingreso_mensual_millones": ingreso,
+        "antiguedad_laboral_anios": antig, "score_crediticio": score, "deuda_vigente_millones": deuda,
+        "plazo_meses": plazo, "tasa_ea_pct": tasa, "monto_aprobado_millones": monto,
+        "monto_desembolsado_millones": (monto * rng.uniform(0.96, 1.0, n)).round(1),       # FUGA
+        "cuota_mensual_millones": cuota,                                                    # se conoce DESPUÉS del monto
+    })
+    pos = rng.permutation(n)
+    df.loc[pos[:3], "ingreso_mensual_millones"] *= 6                                        # error de digitación
+    df.loc[pos[3:5], "ingreso_mensual_millones"] = -1.0                                     # código de error
+    for col, frac in (("ingreso_mensual_millones", 0.04), ("score_crediticio", 0.06), ("antiguedad_laboral_anios", 0.03),
+                      ("deuda_vigente_millones", 0.02)):
+        df[col] = _holes(rng, df[col], frac)
+    df = pd.concat([df, df.sample(10, random_state=seed)], ignore_index=True)               # 10 duplicados exactos
+    return df.sort_values("fecha_desembolso", kind="stable").reset_index(drop=True)
+
+
 DATASETS = {
     "Retail · ventas semanales (con fuga de información)": ("ventas_retail.csv", retail_ventas,
         "Ventas, publicidad, tráfico y descuentos. Incluye faltantes, duplicados, etiquetas sucias y una variable que filtra Y."),
@@ -161,7 +246,14 @@ DATASETS = {
         "Rendimientos decrecientes con el fertilizante (relación cóncava)."),
     "Servicio al cliente · satisfacción (sin relación)": ("satisfaccion_servicio.csv", servicio_satisfaccion,
         "Muestra pequeña y casi sin relación: la app debe advertir que no hay modelo confiable."),
+    "Salud · costo de hospitalización (1000 registros)": ("atencion_hospitalaria.csv", salud_hospitalario,
+        "1000 hospitalizaciones: costo vs días de estancia/procedimientos. Incluye fuga (costo facturado), estancias negativas, faltantes y duplicados."),
+    "Banca · monto de crédito aprobado (1000 registros)": ("cartera_credito.csv", banca_credito,
+        "1000 créditos: monto aprobado vs ingreso, score y deuda. Incluye fuga (monto desembolsado), cuota posterior, ingresos con error y duplicados."),
 }
+
+# Archivos que se guardan con BOM (utf-8-sig) para que Excel muestre bien las tildes al abrirlos con doble clic.
+BOM_FILES = {"atencion_hospitalaria.csv", "cartera_credito.csv"}
 
 
 CONTEXTS = {
@@ -228,6 +320,24 @@ CONTEXTS = {
         restricciones="",
         pregunta="¿La espera explica la satisfacción?",
         y="satisfaccion_0_10", date=None),
+    "Salud · costo de hospitalización (1000 registros)": dict(
+        sector="Salud", actividad="Clínica de mediana complejidad con servicio de hospitalización",
+        core="Controlar el costo por paciente y negociar tarifas con las aseguradoras (EPS)",
+        problema="Necesitamos proyectar el costo de cada hospitalización para presupuestar y constituir provisiones.",
+        objetivo_y="Costo total de la atención por paciente (millones de pesos)",
+        factores="Días de estancia, número de procedimientos, edad, nivel de complejidad, comorbilidades, servicio",
+        restricciones="La estancia máxima autorizada es de 45 días. Los días de estancia no pueden ser negativos.",
+        pregunta="¿Cuánto aumenta el costo por cada día adicional de hospitalización?",
+        y="costo_total_millones", date="fecha_ingreso"),
+    "Banca · monto de crédito aprobado (1000 registros)": dict(
+        sector="Banca y servicios financieros", actividad="Crédito de libre inversión para personas naturales",
+        core="Aprobar montos acordes con la capacidad de pago del cliente controlando el riesgo",
+        problema="Se requiere una referencia objetiva del monto que se puede aprobar según el perfil del solicitante.",
+        objetivo_y="Monto de crédito aprobado por solicitud (millones de pesos)",
+        factores="Ingreso mensual, score crediticio, deuda vigente, antigüedad laboral, plazo",
+        restricciones="El monto máximo por política es de 120 millones. La cuota no debe superar el 40% del ingreso.",
+        pregunta="¿Cuánto más se aprueba por cada millón adicional de ingreso mensual del cliente?",
+        y="monto_aprobado_millones", date="fecha_desembolso"),
 }
 
 
@@ -247,7 +357,7 @@ def write_all(folder: Path = HERE) -> list[Path]:
             txt["fecha"] = txt["fecha"].dt.strftime("%d/%m/%Y")
             txt.to_csv(path, sep=";", decimal=",", index=False, encoding="cp1252")
         else:
-            df.to_csv(path, index=False, encoding="utf-8")
+            df.to_csv(path, index=False, encoding="utf-8-sig" if fname in BOM_FILES else "utf-8")
         out.append(path)
     return out
 

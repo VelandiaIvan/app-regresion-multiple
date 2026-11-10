@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manual: publicar la app en Vercel</title>
+<meta name="description" content="Manual paso a paso para publicar el Asistente de Regresión Lineal Simple con una página en Vercel y la app en Streamlit Community Cloud.">
+<style>
+:root{
+  --bg:#f6f6f3; --surface:#ffffff; --ink:#14130f; --ink2:#4d4c47; --muted:#85837c; --line:#e3e2db;
+  --brand:#184f95; --brand2:#2a78d6; --brand-soft:#e8f0fb;
+  --ok:#0b6b2a; --ok-bg:#e8f6ec; --warn:#8a5a00; --warn-bg:#fff6dc; --bad:#a02020; --bad-bg:#fdeaea;
+  --info-bg:#eaf2fd; --code-bg:#0f1b2d; --code-ink:#e7eefb; --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 14px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0e0f11; --surface:#17181b; --ink:#eceae4; --ink2:#bdbbb2; --muted:#8c8a82; --line:#2a2b2f;
+    --brand:#6da7ec; --brand2:#3987e5; --brand-soft:#16253a;
+    --ok:#6fd28c; --ok-bg:#12261a; --warn:#f0c15a; --warn-bg:#2a2210; --bad:#f19a9a; --bad-bg:#2b1414;
+    --info-bg:#14243a; --code-bg:#0a0f18; --code-ink:#dfe8f7; --shadow:none;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--brand)}
+code{font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;font-size:.88em;background:rgba(127,127,127,.16);padding:1px 6px;border-radius:5px}
+h1,h2,h3{line-height:1.25;letter-spacing:-.015em}
+
+/* ---------- barra superior ---------- */
+.top{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--line);box-shadow:var(--shadow)}
+.top .in{max-width:1240px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:16px}
+.brand{font-weight:700;white-space:nowrap}
+.brand span{color:var(--brand)}
+.prog{flex:1;min-width:80px}
+.prog .bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
+.prog .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--brand),var(--brand2));transition:width .35s}
+.prog small{color:var(--ink2);font-size:.78rem}
+.btn{font:inherit;font-size:.82rem;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:6px 11px;border-radius:8px;cursor:pointer}
+.btn:hover{border-color:var(--brand2)}
+.btn:focus-visible,.tab:focus-visible,.copy:focus-visible,summary:focus-visible,input[type=checkbox]:focus-visible{outline:3px solid var(--brand2);outline-offset:2px}
+
+/* ---------- estructura ---------- */
+.layout{max-width:1240px;margin:0 auto;padding:0 20px 80px;display:grid;grid-template-columns:250px minmax(0,1fr);gap:34px}
+nav.toc{position:sticky;top:88px;align-self:start;max-height:calc(100vh - 110px);overflow:auto;padding:22px 0}
+nav.toc h2{font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0 0 10px}
+nav.toc a{display:block;padding:6px 10px;margin:1px 0;border-radius:8px;color:var(--ink2);text-decoration:none;font-size:.9rem;border-left:3px solid transparent}
+nav.toc a:hover{background:var(--brand-soft)}
+nav.toc a.on{background:var(--brand-soft);color:var(--brand);font-weight:650;border-left-color:var(--brand2)}
+nav.toc a .n{display:inline-block;min-width:1.5em;color:var(--muted);font-variant-numeric:tabular-nums}
+details.toc-m{display:none}
+main{min-width:0;padding-top:26px}
+
+/* ---------- portada ---------- */
+.hero{background:linear-gradient(125deg,#0d366b 0%,#184f95 55%,#2a78d6 100%);color:#fff;border-radius:18px;padding:34px 34px 28px;box-shadow:var(--shadow)}
+.hero h1{margin:0 0 8px;font-size:clamp(1.55rem,3.4vw,2.2rem);color:#fff}
+.hero p{margin:0;color:#dbe8fa;font-size:1.05rem;max-width:62ch}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.chip{background:rgba(255,255,255,.16);border-radius:99px;padding:4px 12px;font-size:.82rem}
+
+/* ---------- avisos ---------- */
+.callout{border-left:5px solid var(--brand2);background:var(--info-bg);padding:14px 18px;border-radius:10px;margin:18px 0}
+.callout.warn{border-color:#eda100;background:var(--warn-bg)}
+.callout.bad{border-color:#d03b3b;background:var(--bad-bg)}
+.callout.ok{border-color:#2aa84a;background:var(--ok-bg)}
+.callout strong.t{display:block;margin-bottom:3px}
+.callout p{margin:.4em 0}.callout p:first-child{margin-top:0}.callout p:last-child{margin-bottom:0}
+
+/* ---------- secciones ---------- */
+section{margin:46px 0 0}
+section>h2{display:flex;align-items:center;gap:12px;font-size:1.55rem;margin:0 0 6px}
+section>h2 .num{flex:none;display:inline-grid;place-items:center;width:38px;height:38px;border-radius:12px;background:var(--brand);color:#fff;font-size:1.05rem;font-weight:700}
+.meta{color:var(--ink2);font-size:.88rem;margin:0 0 14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow);margin:14px 0}
+
+/* ---------- tareas (pasos con casilla) ---------- */
+.task{display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;padding:14px 16px;margin:10px 0;background:var(--surface);
+      border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);counter-increment:paso}
+.task input{width:20px;height:20px;margin:3px 0 0;accent-color:var(--brand2);cursor:pointer}
+.task.done{opacity:.62}
+.task .body>:first-child{margin-top:0}.task .body>:last-child{margin-bottom:0}
+.task .lead{font-weight:650}
+.steps{counter-reset:paso}
+.steps .task .lead::before{content:counter(paso) ". ";color:var(--brand)}
+
+/* ---------- código ---------- */
+pre{position:relative;margin:10px 0;padding:14px 16px;background:var(--code-bg);color:var(--code-ink);border-radius:10px;overflow:auto;font-size:.86rem;line-height:1.55}
+pre code{background:none;padding:0;color:inherit;font-size:inherit}
+pre .copy{position:absolute;top:8px;right:8px;font:inherit;font-size:.72rem;padding:3px 9px;border-radius:6px;cursor:pointer;
+          border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff}
+pre .copy:hover{background:rgba(255,255,255,.22)}
+pre .copy.ok{background:#1f7a3a;border-color:#1f7a3a}
+pre .c{color:#8fa3bf}
+
+/* ---------- tablas ---------- */
+.tw{overflow-x:auto;margin:14px 0}
+table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:.92rem}
+th,td{padding:10px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+th{background:var(--brand-soft);color:var(--ink);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em}
+tr:last-child td{border-bottom:0}
+
+/* ---------- pestañas ---------- */
+.tabs{display:flex;gap:6px;margin:16px 0 0;flex-wrap:wrap}
+.tab{font:inherit;font-weight:650;font-size:.92rem;padding:10px 16px;border:1px solid var(--line);border-bottom:0;background:var(--bg);color:var(--ink2);
+     border-radius:10px 10px 0 0;cursor:pointer}
+.tab[aria-selected=true]{background:var(--surface);color:var(--brand);border-color:var(--line);box-shadow:0 -2px 0 var(--brand2) inset}
+.panel{display:none;border:1px solid var(--line);border-radius:0 12px 12px 12px;padding:6px 16px 16px;background:var(--surface)}
+.panel.show{display:block}
+.panel .task{box-shadow:none;background:var(--bg)}
+
+/* ---------- diagrama ---------- */
+.diagram{width:100%;height:auto;display:block}
+.diagram .bx{fill:var(--surface);stroke:var(--line);stroke-width:1.5}
+.diagram .bx.v{fill:var(--brand-soft);stroke:var(--brand2)}
+.diagram .bx.s{fill:var(--ok-bg);stroke:#2aa84a}
+.diagram text{fill:var(--ink);font:600 14px system-ui,sans-serif}
+.diagram text.sm{font-weight:400;font-size:12px;fill:var(--ink2)}
+.diagram .ar{stroke:var(--ink2);stroke-width:1.8;fill:none;marker-end:url(#h)}
+.diagram .lb{font-weight:500;font-size:12px;fill:var(--ink2)}
+
+details.faq{background:var(--surface);border:1px solid var(--line);border-radius:10px;margin:8px 0;padding:2px 16px}
+details.faq summary{cursor:pointer;font-weight:650;padding:11px 0}
+footer{margin:60px 0 0;padding-top:20px;border-top:1px solid var(--line);color:var(--ink2);font-size:.88rem}
+footer ul{padding-left:1.2em}
+
+/* ---------- móvil ---------- */
+@media (max-width:960px){
+  .layout{grid-template-columns:1fr;gap:0}
+  nav.toc{display:none}
+  details.toc-m{display:block;margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:2px 14px}
+  details.toc-m summary{cursor:pointer;font-weight:650;padding:11px 0}
+  details.toc-m a{display:block;padding:7px 4px;color:var(--ink2);text-decoration:none;border-top:1px solid var(--line)}
+  .hero{padding:24px 20px}
+  .brand{display:none}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.prog .bar i{transition:none}}
+
+/* ---------- impresión ---------- */
+@media print{
+  body{background:#fff;color:#000;font-size:11pt}
+  .top,nav.toc,details.toc-m,.copy,.tabs,.btn{display:none !important}
+  .layout{display:block;padding:0}
+  .panel{display:block !important;border:0;padding:0}
+  .panel::before{content:attr(data-title);display:block;font-weight:700;margin:12px 0 4px}
+  .task,.card,.callout,pre{break-inside:avoid;box-shadow:none}
+  .hero{color:#000;background:none;border:2px solid #184f95}.hero h1,.hero p{color:#000}.chip{border:1px solid #999;color:#000;background:none}
+  pre{background:#f1f1f1;color:#000;border:1px solid #bbb}
+  a{color:#000}
+}
+</style>
+</head>
+<body>
+
+<div class="top"><div class="in">
+  <div class="brand">📘 Manual <span>Vercel</span></div>
+  <div class="prog" aria-live="polite">
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Avance del manual"><i id="bar"></i></div>
+    <small id="progtxt">0 de 0 pasos</small>
+  </div>
+  <button class="btn" id="reset" title="Desmarca todos los pasos">Reiniciar</button>
+  <button class="btn" onclick="window.print()" title="Imprimir o guardar como PDF">Imprimir</button>
+</div></div>
+
+<div class="layout">
+<nav class="toc" aria-label="Índice">
+  <h2>Contenido</h2>
+  <a href="#inicio"><span class="n">★</span>Lea esto primero</a>
+  <a href="#mapa"><span class="n">◎</span>Qué va a lograr</a>
+  <a href="#p1"><span class="n">1</span>Requisitos</a>
+  <a href="#p2"><span class="n">2</span>Código en GitHub</a>
+  <a href="#p3"><span class="n">3</span>App en Streamlit</a>
+  <a href="#p4"><span class="n">4</span>Configurar la página</a>
+  <a href="#p5"><span class="n">5</span>Desplegar en Vercel</a>
+  <a href="#p6"><span class="n">6</span>Dominio propio</a>
+  <a href="#p7"><span class="n">7</span>Verificar</a>
+  <a href="#p8"><span class="n">8</span>Actualizar</a>
+  <a href="#p9"><span class="n">!</span>Problemas frecuentes</a>
+  <a href="#rutab"><span class="n">B</span>¿Todo dentro de Vercel?</a>
+  <a href="#fuentes"><span class="n">↗</span>Fuentes</a>
+</nav>
+
+<main>
+<details class="toc-m"><summary>☰ Contenido</summary>
+  <a href="#inicio">Lea esto primero</a><a href="#mapa">Qué va a lograr</a><a href="#p1">1 · Requisitos</a><a href="#p2">2 · Código en GitHub</a>
+  <a href="#p3">3 · App en Streamlit</a><a href="#p4">4 · Configurar la página</a><a href="#p5">5 · Desplegar en Vercel</a>
+  <a href="#p6">6 · Dominio propio</a><a href="#p7">7 · Verificar</a><a href="#p8">8 · Actualizar</a>
+  <a href="#p9">Problemas frecuentes</a><a href="#rutab">¿Todo dentro de Vercel?</a><a href="#fuentes">Fuentes</a>
+</details>
+
+<!-- ============================================================ PORTADA -->
+<div class="hero" id="inicio">
+  <h1>Publique su app en Vercel</h1>
+  <p>De los archivos en su computador a una dirección web propia, en 8 pasos. Manual del <strong>Asistente de Regresión Lineal Simple</strong>.</p>
+  <div class="chips"><span class="chip">⏱ unos 45 minutos</span><span class="chip">🧰 nivel principiante</span><span class="chip">☑ marque cada paso: su avance se guarda</span></div>
+</div>
+
+<div class="callout bad">
+  <strong class="t">Lea esto primero: Vercel no puede ejecutar esta app</strong>
+  <p>La app está hecha con <strong>Streamlit</strong>, que necesita un servidor encendido todo el tiempo con una conexión <em>WebSocket</em> abierta.
+  Las funciones de Vercel son «sin servidor» (se encienden, responden y se apagan) y no admiten WebSockets. Si sube la app tal cual a Vercel, no funciona.</p>
+  <p><strong>Lo que sí funciona, y lo que hace este manual:</strong> la app corre en <strong>Streamlit Community Cloud</strong> (gratis) y usted publica en
+  <strong>Vercel</strong> una página suya —con su dirección y, si quiere, su dominio— que muestra la app dentro. La persona entra por Vercel; los cálculos se hacen en Streamlit.</p>
+</div>
+
+<!-- ============================================================ MAPA -->
+<section id="mapa">
+  <h2>Qué va a lograr</h2>
+  <p class="meta">El mapa completo, antes de empezar.</p>
+  <div class="card">
+    <svg class="diagram" viewBox="0 0 860 310" role="img" aria-label="Diagrama: el usuario entra a una página en Vercel que muestra la app alojada en Streamlit Community Cloud; ambos se despliegan desde GitHub.">
+      <defs><marker id="h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" style="color:var(--ink2)"/></marker></defs>
+      <rect class="bx" x="12" y="108" width="150" height="84" rx="14"/><text x="87" y="142" text-anchor="middle">👤 Usuario</text><text class="sm" x="87" y="164" text-anchor="middle">navegador</text>
+      <rect class="bx v" x="240" y="30" width="250" height="120" rx="14"/><text x="365" y="66" text-anchor="middle">▲ Vercel</text>
+      <text class="sm" x="365" y="90" text-anchor="middle">su página (index.html)</text><text class="sm" x="365" y="110" text-anchor="middle">su dirección / su dominio</text><text class="sm" x="365" y="130" text-anchor="middle">solo muestra la app</text>
+      <rect class="bx s" x="590" y="30" width="258" height="120" rx="14"/><text x="719" y="66" text-anchor="middle">🟢 Streamlit Community Cloud</text>
+      <text class="sm" x="719" y="90" text-anchor="middle">la app de Python</text><text class="sm" x="719" y="110" text-anchor="middle">13 módulos y cálculos</text><text class="sm" x="719" y="130" text-anchor="middle">aquí se hace el trabajo</text>
+      <rect class="bx" x="340" y="226" width="250" height="68" rx="14"/><text x="465" y="256" text-anchor="middle">🐙 GitHub</text><text class="sm" x="465" y="276" text-anchor="middle">repositorio con el código</text>
+      <path class="ar" d="M162,138 L238,100"/><text class="lb" x="146" y="104">1 · entra</text>
+      <path class="ar" d="M490,90 L588,90"/><text class="lb" x="500" y="78">2 · muestra</text><text class="lb" x="505" y="112">(marco)</text>
+      <path class="ar" d="M420,224 L380,152"/><text class="lb" x="262" y="196">despliega la página</text>
+      <path class="ar" d="M520,224 L680,152"/><text class="lb" x="600" y="212">despliega la app</text>
+    </svg>
+  </div>
+  <div class="tw"><table>
+    <tr><th>Pieza</th><th>Dónde vive</th><th>Quién la ejecuta</th></tr>
+    <tr><td>Código de la app (Python)</td><td>GitHub</td><td>—</td></tr>
+    <tr><td>Interfaz de 13 módulos y cálculos estadísticos</td><td>Streamlit Community Cloud</td><td>El servidor de Streamlit</td></tr>
+    <tr><td>Página con su dirección (<code>vercel/index.html</code>)</td><td>Vercel</td><td>El navegador de quien la visita (es una página estática)</td></tr>
+  </table></div>
+  <div class="callout">
+    <strong class="t">¿Y si necesito que TODO corra dentro de Vercel?</strong>
+    <p>Eso no es un despliegue sino una <strong>reescritura</strong> de la aplicación. Se explica al final: <a href="#rutab">sección B</a>.</p>
+  </div>
+</section>
+
+<!-- ============================================================ PASO 1 -->
+<section id="p1">
+  <h2><span class="num">1</span>Requisitos</h2>
+  <p class="meta">⏱ 10 min · una sola vez</p>
+  <div class="tw"><table>
+    <tr><th>Qué necesita</th><th>Para qué</th><th>Cómo conseguirlo</th></tr>
+    <tr><td>Cuenta de <strong>GitHub</strong></td><td>Guardar el código; Streamlit y Vercel lo leen desde ahí</td><td>Ya la tiene: <code>velandiaivan640-droid</code></td></tr>
+    <tr><td>Cuenta de <strong>Streamlit</strong></td><td>Alojar la app</td><td>Se crea sola al entrar con GitHub en <strong>share.streamlit.io</strong></td></tr>
+    <tr><td>Cuenta de <strong>Vercel</strong></td><td>Alojar la página</td><td><strong>vercel.com</strong> → Sign Up → entrar con GitHub (plan gratuito «Hobby»)</td></tr>
+    <tr><td><strong>Node.js 20 o superior</strong></td><td>Solo si usa la <em>Opción B</em> (terminal) del paso 5</td><td><strong>nodejs.org</strong> → versión LTS</td></tr>
+    <tr><td>Git y Python 3.12</td><td>Subir el código y probar en su computador</td><td>Ya los tiene instalados</td></tr>
+  </table></div>
+  <div class="callout warn">
+    <strong class="t">⚠ Dos condiciones que conviene conocer antes de empezar</strong>
+    <p><strong>1) El plan gratuito de Vercel es solo para uso personal y no comercial</strong> (así lo indica su documentación). Si esta página la va a usar con clientes,
+    en una empresa o en un banco, necesitará el plan Pro u otra alternativa. Revise las condiciones vigentes en vercel.com.</p>
+    <p><strong>2) La app de Streamlit debe ser pública para poder mostrarse dentro de otra página.</strong> Streamlit indica que no hay soporte oficial para incrustar apps privadas.
+    Además, todo archivo que alguien cargue en la app pasa por servidores de Streamlit: <strong>no use datos confidenciales</strong> (cartera real, estudio de Manizales).</p>
+  </div>
+</section>
+
+<!-- ============================================================ PASO 2 -->
+<section id="p2">
+  <h2><span class="num">2</span>Subir el código a GitHub</h2>
+  <p class="meta">⏱ 5 min · detalle ampliado en <code>DESPLIEGUE.md</code>, apartado 4</p>
+  <div class="steps">
+    <div class="task"><input type="checkbox" data-id="p2-1" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Abra PowerShell y entre a la carpeta del proyecto</p>
+<pre><code>cd C:\Users\DELL\Desktop\app_regresion
+git status</code></pre>
+      <p>Debe ver, entre los archivos nuevos, la carpeta <code>vercel/</code> y este manual <code>MANUAL_VERCEL.html</code>.</p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p2-2" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Retire del seguimiento los archivos compilados (<code>.pyc</code>)</p>
+<pre><code>git rm -r --cached core/__pycache__</code></pre>
+      <p>Si responde <code>pathspec ... did not match any files</code>, ya estaban retirados: continúe.</p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p2-3" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Confirme y suba</p>
+<pre><code>git add .
+git commit -m "App de regresion lineal simple y pagina para Vercel"
+git push origin main</code></pre>
+      <p>La primera vez, Git puede abrir una ventana para iniciar sesión en GitHub. Los avisos <em>«LF will be replaced by CRLF»</em> son normales en Windows.</p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p2-4" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Compruebe en GitHub</p>
+      <p>Entre a <code>github.com/velandiaivan640-droid/app-regresion-multiple</code> y confirme que ve <code>app.py</code>, <code>core/</code>, <code>ui/</code> y <code>vercel/index.html</code>.</p>
+    </div></div>
+  </div>
+</section>
+
+<!-- ============================================================ PASO 3 -->
+<section id="p3">
+  <h2><span class="num">3</span>Publicar la app en Streamlit Community Cloud</h2>
+  <p class="meta">⏱ 10 min (la instalación tarda unos minutos)</p>
+  <div class="steps">
+    <div class="task"><input type="checkbox" data-id="p3-1" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Entre con GitHub</p>
+      <p>Vaya a <strong>share.streamlit.io</strong> y pulse <strong>Continue with GitHub</strong>. Si su repositorio es privado, GitHub pedirá un permiso adicional (alcance <code>repo</code>): acéptelo.</p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p3-2" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Cree la app</p>
+      <p>Arriba a la derecha pulse <strong>Create app</strong> y elija <strong>Yup, I have an app</strong>.</p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p3-3" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Complete el formulario</p>
+      <div class="tw"><table>
+        <tr><th>Campo</th><th>Valor</th></tr>
+        <tr><td>Repository</td><td><code>velandiaivan640-droid/app-regresion-multiple</code></td></tr>
+        <tr><td>Branch</td><td><code>main</code></td></tr>
+        <tr><td>Main file path</td><td><code>app.py</code></td></tr>
+        <tr><td>App URL</td><td>un nombre libre, p. ej. <code>regresion-simple</code></td></tr>
+      </table></div>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p3-4" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Elija Python 3.12</p>
+      <p>Pulse <strong>Advanced settings</strong> → en <strong>Python version</strong> escoja <strong>3.12</strong> → <strong>Save</strong>. Deje <em>Secrets</em> vacío.</p>
+      <div class="callout warn"><p><strong>Esta versión no se puede cambiar después</strong>: habría que borrar la app y desplegarla de nuevo. Elíjala siempre de forma explícita.</p></div>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p3-5" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Despliegue y espere</p>
+      <p>Pulse <strong>Deploy</strong>. Instalar las dependencias tarda unos minutos; verá el avance en el panel de <em>logs</em>. Termina cuando aparece el menú de 13 módulos.</p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p3-6" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Copie la dirección de su app</p>
+      <p>Tendrá la forma <code>https://regresion-simple.streamlit.app</code>. <strong>Guárdela: la necesita en el paso 4.</strong></p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p3-7" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Compruebe que es pública</p>
+      <p>Abra esa dirección en una <strong>ventana de incógnito</strong>. Debe abrir la app <em>sin pedir inicio de sesión</em>. Si pide iniciar sesión, la app es privada y no se podrá mostrar dentro de la página de Vercel: revise las opciones de visibilidad en el menú <strong>Share</strong> de la app.</p>
+    </div></div>
+  </div>
+</section>
+
+<!-- ============================================================ PASO 4 -->
+<section id="p4">
+  <h2><span class="num">4</span>Configurar la página de Vercel</h2>
+  <p class="meta">⏱ 5 min · la carpeta <code>vercel/</code> ya viene lista</p>
+  <p>La carpeta <code>vercel/</code> contiene <strong>solo dos archivos</strong>: <code>index.html</code> (la página con el marco) y <code>vercel.json</code> (ajustes de seguridad básicos).
+  Lo único que debe cambiar es <em>una línea</em>.</p>
+  <div class="steps">
+    <div class="task"><input type="checkbox" data-id="p4-1" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Abra <code>vercel/index.html</code> con el Bloc de notas o con VS Code</p>
+      <p>Busque esta línea (está cerca del inicio):</p>
+<pre><code>const APP_URL = "https://TU-APP.streamlit.app";</code></pre>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p4-2" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Reemplace la dirección por la de su app</p>
+<pre><code>const APP_URL = "https://regresion-simple.streamlit.app";</code></pre>
+      <p>Sin <code>?embed=true</code> al final: la página lo agrega sola. Guarde el archivo.</p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p4-3" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Pruébela en su computador</p>
+<pre><code>cd C:\Users\DELL\Desktop\app_regresion\vercel
+py -3.12 -m http.server 8080</code></pre>
+      <p>Abra <code>http://localhost:8080</code>: debe ver el encabezado azul y, debajo, la app cargando. Para detener el servidor pulse <code>Ctrl + C</code>.
+      Si en lugar de la app ve una <strong>tarjeta amarilla «Falta un paso»</strong>, la dirección sigue sin configurar.</p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p4-4" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Suba el cambio a GitHub</p>
+<pre><code>cd C:\Users\DELL\Desktop\app_regresion
+git add .
+git commit -m "Configurar la direccion de la app en la pagina de Vercel"
+git push origin main</code></pre>
+    </div></div>
+  </div>
+</section>
+
+<!-- ============================================================ PASO 5 -->
+<section id="p5">
+  <h2><span class="num">5</span>Desplegar en Vercel</h2>
+  <p class="meta">⏱ 10 min · elija <strong>una</strong> de las dos opciones</p>
+
+  <div class="tabs" role="tablist" aria-label="Opciones de despliegue">
+    <button class="tab" role="tab" id="tab-a" aria-controls="panel-a" aria-selected="true">Opción A · Desde el panel (con GitHub)</button>
+    <button class="tab" role="tab" id="tab-b" aria-controls="panel-b" aria-selected="false">Opción B · Desde la terminal</button>
+  </div>
+
+  <div class="panel show steps" role="tabpanel" id="panel-a" aria-labelledby="tab-a" data-title="Opción A · Desde el panel (con GitHub)">
+    <div class="callout">
+      <p><strong>Ventaja:</strong> después, cada vez que haga <code>git push</code>, Vercel actualiza la página solo. <strong>Recomendada.</strong></p>
+    </div>
+    <div class="task"><input type="checkbox" data-id="p5a-1" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Entre a Vercel con GitHub</p>
+      <p>En <strong>vercel.com</strong> pulse <strong>Sign Up</strong> y elija continuar con GitHub.</p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p5a-2" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Cree un proyecto nuevo e importe el repositorio</p>
+      <p>Abra <strong>vercel.com/new</strong>. Conecte su cuenta de GitHub si se lo pide y elija el repositorio <code>app-regresion-multiple</code>.</p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p5a-3" aria-label="Paso hecho"><div class="body">
+      <p class="lead">⚠ Indique que la página está en la carpeta <code>vercel</code> (<em>Root Directory</em>)</p>
+      <p>Si en la pantalla de configuración ve el campo <strong>Root Directory</strong>, escriba <code>vercel</code>.</p>
+      <div class="callout bad"><p><strong>Este es el error más probable.</strong> Sin este ajuste, Vercel mira la raíz del repositorio, que es una aplicación de Python (<code>app.py</code>, <code>requirements.txt</code>), y
+      el despliegue puede fallar. Si el primer despliegue falla: <strong>Settings → Build and Deployment → Root Directory</strong> → escriba <code>vercel</code> → <strong>Save</strong> → vuelva a desplegar.</p></div>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p5a-4" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Framework: «Other», sin comando de compilación</p>
+      <p>Si no detecta ningún framework, Vercel selecciona <strong>Other</strong>. Es una página estática: no hay nada que compilar. En <strong>Build Command</strong> no escriba nada.</p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p5a-5" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Pulse <strong>Deploy</strong></p>
+      <p>En un minuto aparece una dirección como <code>https://su-proyecto.vercel.app</code>. <strong>Esa es la dirección pública de su app.</strong> Ábrala.</p>
+    </div></div>
+  </div>
+
+  <div class="panel steps" role="tabpanel" id="panel-b" aria-labelledby="tab-b" data-title="Opción B · Desde la terminal">
+    <div class="callout">
+      <p><strong>Ventaja:</strong> no depende de la configuración de la interfaz web y evita el error del <em>Root Directory</em>, porque sube solo la carpeta <code>vercel/</code>.
+      <strong>Desventaja:</strong> cada actualización es manual (<code>vercel --prod</code>).</p>
+    </div>
+    <div class="task"><input type="checkbox" data-id="p5b-1" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Instale Node.js 20 o superior y compruébelo</p>
+<pre><code>node --version</code></pre>
+      <p>Si no lo reconoce, instálelo desde <strong>nodejs.org</strong> y <em>cierre y vuelva a abrir PowerShell</em>.</p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p5b-2" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Instale la herramienta de Vercel e inicie sesión</p>
+<pre><code>npm i -g vercel
+vercel login</code></pre>
+      <p>Siga las indicaciones en pantalla para autenticarse con su cuenta.</p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p5b-3" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Entre a la carpeta de la página y despliegue</p>
+<pre><code>cd C:\Users\DELL\Desktop\app_regresion\vercel
+vercel</code></pre>
+      <p>Responda las preguntas con las opciones que propone (<code>Enter</code>) y elija el nombre del proyecto. Al terminar, la terminal muestra la dirección.
+      <strong>El primer despliegue de un proyecto nuevo siempre es de producción.</strong></p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p5b-4" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Para publicar cambios posteriores</p>
+<pre><code>cd C:\Users\DELL\Desktop\app_regresion\vercel
+vercel --prod</code></pre>
+    </div></div>
+  </div>
+</section>
+
+<!-- ============================================================ PASO 6 -->
+<section id="p6">
+  <h2><span class="num">6</span>Dominio propio <small style="font-weight:500;color:var(--muted)">(opcional)</small></h2>
+  <p class="meta">⏱ 15 min + el tiempo de propagación del DNS · Vercel ya le da una dirección <code>.vercel.app</code> gratis</p>
+  <div class="steps">
+    <div class="task"><input type="checkbox" data-id="p6-1" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Agregue el dominio al proyecto</p>
+      <p>En Vercel abra su proyecto → <strong>Settings</strong> → <strong>Domains</strong> → botón <strong>Add Existing</strong> y escriba el dominio. ¿No tiene uno? Vercel permite comprarlo.</p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p6-2" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Cree el registro DNS que Vercel le indica, en el sitio donde compró el dominio</p>
+      <div class="tw"><table>
+        <tr><th>Si usa…</th><th>Tipo de registro</th></tr>
+        <tr><td>Un <strong>subdominio</strong> (p. ej. <code>regresion.midominio.com</code>)</td><td><strong>CNAME</strong> (cada proyecto tiene su valor propio)</td></tr>
+        <tr><td>El <strong>dominio raíz</strong> (p. ej. <code>midominio.com</code>)</td><td><strong>A</strong></td></tr>
+      </table></div>
+      <p><strong>Copie los valores exactos que muestra Vercel en la pantalla de Domains</strong>; no use los de otro proyecto.</p>
+    </div></div>
+    <div class="task"><input type="checkbox" data-id="p6-3" aria-label="Paso hecho"><div class="body">
+      <p class="lead">Espere a que quede configurado</p>
+      <p>Los cambios de DNS tardan en propagarse. Cuando Vercel lo verifica, el estado del dominio cambia a configurado. Si muestra <em>Invalid Configuration</em>, revise que no haya registros A, AAAA o CNAME en conflicto para el mismo nombre.</p>
+    </div></div>
+  </div>
+</section>
+
+<!-- ============================================================ PASO 7 -->
+<section id="p7">
+  <h2><span class="num">7</span>Verificar que todo funciona</h2>
+  <p class="meta">⏱ 5 min · hágalo desde la dirección pública, idealmente en una ventana de incógnito</p>
+  <div class="steps">
+    <div class="task"><input type="checkbox" data-id="p7-1" aria-label="Paso hecho"><div class="body"><p class="lead">La página muestra el encabezado y la app se carga dentro</p><p>La primera vez puede tardar unos segundos si la app estaba en reposo.</p></div></div>
+    <div class="task"><input type="checkbox" data-id="p7-2" aria-label="Paso hecho"><div class="body"><p class="lead">Módulo 1: cargue el ejemplo «Banca · monto de crédito aprobado (1000 registros)»</p><p>Debe cargar y avanzar por los módulos 2 a 8 sin errores.</p></div></div>
+    <div class="task"><input type="checkbox" data-id="p7-3" aria-label="Paso hecho"><div class="body"><p class="lead">Cargue un archivo desde su computador (módulo 2)</p><p>Use <code>sample_data/cartera_credito.csv</code>. <em>No pude verificar yo la carga de archivos dentro del marco</em>: pruébelo.</p></div></div>
+    <div class="task"><input type="checkbox" data-id="p7-4" aria-label="Paso hecho"><div class="body"><p class="lead">Descargue el informe (módulo 12)</p><p>Verifique que la descarga funciona dentro del marco. Si algo falla, use el botón <strong>«Abrir en pestaña nueva»</strong> del encabezado: abre la app directamente.</p></div></div>
+    <div class="task"><input type="checkbox" data-id="p7-5" aria-label="Paso hecho"><div class="body"><p class="lead">Ábrala desde el celular</p></div></div>
+  </div>
+</section>
+
+<!-- ============================================================ PASO 8 -->
+<section id="p8">
+  <h2><span class="num">8</span>Actualizar después</h2>
+  <p class="meta">Cada pieza se actualiza por separado</p>
+  <div class="tw"><table>
+    <tr><th>Si cambia…</th><th>Qué hacer</th></tr>
+    <tr><td>La app (carpetas <code>core/</code>, <code>ui/</code>, <code>app.py</code>)</td><td><code>git add .</code> · <code>git commit</code> · <code>git push origin main</code>. Streamlit actualiza la app; si cambió <code>requirements.txt</code>, la reinstalación puede tardar unos minutos.</td></tr>
+    <tr><td>La página (<code>vercel/index.html</code>)</td><td><strong>Opción A:</strong> el mismo <code>git push</code> actualiza Vercel solo. <strong>Opción B:</strong> <code>vercel --prod</code> desde la carpeta <code>vercel</code>.</td></tr>
+    <tr><td>La dirección de la app de Streamlit</td><td>Edite <code>APP_URL</code> en <code>vercel/index.html</code> y vuelva a desplegar la página.</td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================ PROBLEMAS -->
+<section id="p9">
+  <h2><span class="num">!</span>Problemas frecuentes</h2>
+  <p class="meta">Haga clic en el síntoma</p>
+
+  <details class="faq"><summary>Veo una tarjeta amarilla que dice «Falta un paso»</summary>
+    <p>La dirección <code>APP_URL</code> sigue siendo la de ejemplo (<code>TU-APP</code>), o la cambió pero no volvió a desplegar. Repita el <a href="#p4">paso 4</a> y vuelva a desplegar la página.</p></details>
+  <details class="faq"><summary>El marco sale en blanco o dice «refused to connect»</summary>
+    <p>Lo más probable es que la app de Streamlit <strong>no sea pública</strong> (Streamlit no da soporte a incrustar apps privadas) o esté todavía arrancando. Abra la dirección de Streamlit en incógnito: si pide iniciar sesión, es privada
+    (<a href="#p3">paso 3.7</a>). Mientras tanto, use el botón «Abrir en pestaña nueva».</p></details>
+  <details class="faq"><summary>Vercel dice «Build failed» o se queja de Python</summary>
+    <p>Casi seguro falta el <em>Root Directory</em>: <strong>Settings → Build and Deployment → Root Directory</strong> → <code>vercel</code> → <strong>Save</strong> → vuelva a desplegar (<a href="#p5">paso 5, opción A</a>).</p></details>
+  <details class="faq"><summary>Aparece «404: NOT_FOUND» en la dirección .vercel.app</summary>
+    <p>Confirme que <code>index.html</code> está dentro de la carpeta <code>vercel/</code> en GitHub y que el <em>Root Directory</em> apunta a ella. Con la opción B, ejecute <code>vercel --prod</code> estando dentro de <code>vercel/</code>.</p></details>
+  <details class="faq"><summary>«vercel» no se reconoce como comando</summary>
+    <p>Falta Node.js o no reinició la terminal. Ejecute <code>node --version</code>; si falla, instale Node.js 20+ desde nodejs.org, cierre y abra PowerShell, y repita <code>npm i -g vercel</code>.</p></details>
+  <details class="faq"><summary>Cambié la dirección y sigo viendo lo anterior</summary>
+    <p>O no se volvió a desplegar la página, o el navegador guardó la versión vieja. Compruebe que el despliegue terminó en Vercel y recargue con <code>Ctrl + F5</code>.</p></details>
+  <details class="faq"><summary>Vercel me pide pasar a un plan de pago o pausa el proyecto</summary>
+    <p>El plan gratuito (Hobby) es solo para uso personal no comercial. Si el uso es comercial necesita el plan Pro. Revise las condiciones en vercel.com.</p></details>
+  <details class="faq"><summary>El dominio propio dice «Invalid Configuration»</summary>
+    <p>Compare los registros DNS con los valores que muestra <strong>Settings → Domains</strong> de su proyecto y elimine registros A, AAAA o CNAME en conflicto. Los cambios de DNS tardan en propagarse.</p></details>
+  <details class="faq"><summary>Dentro del marco algo se comporta distinto que en la app directa</summary>
+    <p>No verifiqué cómo se comportan, dentro de un marco, todas las funciones (carga de archivos, descargas, memoria de la sesión). Use el botón <strong>«Abrir en pestaña nueva»</strong>, que abre la app sin marco.</p></details>
+  <details class="faq"><summary>Fallos de Streamlit al desplegar (instalación, Python, «in the oven»)</summary>
+    <p>Están resueltos en <code>DESPLIEGUE.md</code>, apartado 9.</p></details>
+</section>
+
+<!-- ============================================================ RUTA B -->
+<section id="rutab">
+  <h2><span class="num">B</span>¿Y si necesito todo dentro de Vercel?</h2>
+  <p class="meta">Solo lectura: esta ruta no forma parte del manual</p>
+  <div class="card">
+    <p>Esta aplicación <strong>no puede ejecutarse como está</strong> en Vercel. Para que el cálculo corra en Vercel habría que cambiar el diseño:</p>
+    <ul>
+      <li><strong>Reescribir la interfaz de los 13 módulos</strong> como una aplicación web (p. ej. Next.js) en lugar de Streamlit.</li>
+      <li><strong>Convertir el motor</strong> (<code>core/</code>, que sí es reutilizable) en una <strong>API sin estado</strong>: cada petición debe traer sus datos, porque las funciones de Vercel no guardan la sesión entre llamadas.</li>
+      <li><strong>Comprobar límites de tamaño</strong>: pandas, scipy y statsmodels son librerías pesadas y pueden chocar con los límites de las funciones. <em>No lo verifiqué.</em></li>
+    </ul>
+    <p>Su otro proyecto (el zip con <code>frontend/</code> y <code>backend/</code>) sigue ese patrón: interfaz web aparte y API de Python aparte. Si quiere llevar esta app a ese modelo, pídalo como un proyecto nuevo.</p>
+  </div>
+</section>
+
+<!-- ============================================================ FUENTES -->
+<section id="fuentes">
+  <h2><span class="num">↗</span>Fuentes consultadas</h2>
+  <p class="meta">Documentación oficial leída para armar este manual</p>
+  <footer>
+    <ul>
+      <li>Streamlit · <a href="https://docs.streamlit.io/deploy/streamlit-community-cloud/share-your-app/embed-your-app">Incrustar una app (<code>?embed=true</code>; solo apps públicas)</a></li>
+      <li>Streamlit · <a href="https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy">Desplegar en Community Cloud</a> y <a href="https://docs.streamlit.io/deploy/streamlit-community-cloud/manage-your-app/upgrade-python">cambiar la versión de Python</a></li>
+      <li>Vercel · <a href="https://vercel.com/docs/getting-started-with-vercel">Primeros pasos (CLI y panel)</a> · <a href="https://vercel.com/docs/cli/deploy"><code>vercel deploy</code></a></li>
+      <li>Vercel · <a href="https://vercel.com/docs/builds/configure-a-build">Configurar la compilación (Framework «Other», Root Directory)</a></li>
+      <li>Vercel · <a href="https://vercel.com/docs/domains/working-with-domains/add-a-domain">Agregar un dominio propio</a></li>
+      <li>Vercel · <a href="https://vercel.com/docs/plans/hobby">Plan Hobby (uso personal no comercial)</a></li>
+      <li>Vercel y WebSockets (foros de terceros; no pude leer la documentación oficial de Vercel sobre este punto) · <a href="https://community.vercel.com/t/does-vercel-support-websockets-now-that-we-have-fluid-compute/27205">Vercel Community</a> · <a href="https://discuss.streamlit.io/t/deploy-streamlit-in-vercel/38070">Foro de Streamlit</a></li>
+    </ul>
+    <p>Las pantallas de Vercel y Streamlit cambian con el tiempo: si una etiqueta no coincide exactamente, busque la más parecida. <strong>No pude ejecutar yo el despliegue real</strong> (requiere sus cuentas); los pasos
+    se basan en la documentación oficial y en pruebas locales de la página.</p>
+  </footer>
+</section>
+
+</main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---- botones «Copiar» en cada bloque de código ---- */
+  document.querySelectorAll("pre").forEach(function (pre) {
+    var b = document.createElement("button");
+    b.className = "copy"; b.type = "button"; b.textContent = "Copiar";
+    b.setAttribute("aria-label", "Copiar el comando");
+    b.addEventListener("click", function () {
+      var text = pre.querySelector("code").innerText.replace(/\s+$/, "");
+      var done = function () { b.textContent = "¡Copiado!"; b.classList.add("ok"); setTimeout(function () { b.textContent = "Copiar"; b.classList.remove("ok"); }, 1500); };
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(done, fallback); } else { fallback(); }
+      function fallback() {
+        var t = document.createElement("textarea"); t.value = text; document.body.appendChild(t); t.select();
+        try { document.execCommand("copy"); done(); } catch (e) {} document.body.removeChild(t);
+      }
+    });
+    pre.appendChild(b);
+  });
+
+  /* ---- casillas de progreso (se guardan en el navegador) ---- */
+  var KEY = "manual-vercel-v1", saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { saved = {}; }
+  var boxes = Array.prototype.slice.call(document.querySelectorAll(".task input[type=checkbox]"));
+  var bar = document.getElementById("bar"), txt = document.getElementById("progtxt"), pb = document.querySelector(".prog .bar");
+  function paint() {
+    var done = boxes.filter(function (c) { return c.checked; }).length, total = boxes.length;
+    // Las dos opciones del paso 5 son alternativas: el total cuenta solo la opción con más pasos marcados o la A
+    var altB = boxes.filter(function (c) { return c.dataset.id.indexOf("p5b-") === 0; });
+    var altA = boxes.filter(function (c) { return c.dataset.id.indexOf("p5a-") === 0; });
+    var doneB = altB.filter(function (c) { return c.checked; }).length, doneA = altA.filter(function (c) { return c.checked; }).length;
+    var useB = doneB > doneA;
+    var skip = useB ? altA : altB;
+    var effTotal = total - skip.length;
+    var effDone = done - skip.filter(function (c) { return c.checked; }).length;
+    var pct = effTotal ? Math.round(effDone / effTotal * 100) : 0;
+    bar.style.width = pct + "%"; pb.setAttribute("aria-valuenow", pct);
+    txt.textContent = effDone + " de " + effTotal + " pasos · " + pct + " %" + (pct === 100 ? " ✔ ¡Listo!" : "");
+    boxes.forEach(function (c) { c.closest(".task").classList.toggle("done", c.checked); });
+  }
+  boxes.forEach(function (c) {
+    if (saved[c.dataset.id]) c.checked = true;
+    c.addEventListener("change", function () {
+      saved[c.dataset.id] = c.checked;
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+      paint();
+    });
+  });
+  document.getElementById("reset").addEventListener("click", function () {
+    if (!confirm("¿Desmarcar todos los pasos?")) return;
+    boxes.forEach(function (c) { c.checked = false; }); saved = {};
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    paint();
+  });
+  paint();
+
+  /* ---- pestañas del paso 5 ---- */
+  var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab"));
+  function select(tab) {
+    tabs.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute("aria-selected", on); t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute("aria-controls")).classList.toggle("show", on);
+    });
+    paint();
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener("click", function () { select(t); });
+    t.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") { var n = tabs[(i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length]; n.focus(); select(n); }
+    });
+  });
+  select(tabs[0]);
+
+  /* ---- índice: resalta la sección visible ---- */
+  var links = Array.prototype.slice.call(document.querySelectorAll("nav.toc a"));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute("href").slice(1)] = a; });
+  var sections = Object.keys(map).map(function (id) { return document.getElementById(id); }).filter(Boolean);
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) { links.forEach(function (l) { l.classList.remove("on"); }); map[en.target.id].classList.add("on"); }
+      });
+    }, { rootMargin: "-20% 0px -70% 0px" });
+    sections.forEach(function (s) { io.observe(s); });
+  }
+})();
+</script>
+</body>
+</html>

@@ -220,8 +220,8 @@ def descriptives(df: pd.DataFrame) -> pd.DataFrame:
             "mín": float(x.min()), "Q1": float(x.quantile(.25)), "mediana": float(x.median()),
             "Q3": float(x.quantile(.75)), "máx": float(x.max()),
             "CV_%": float(x.std() / abs(mean) * 100) if mean else np.nan,
-            "asimetría": float(stats.skew(x, bias=False)) if len(x) > 2 else np.nan,
-            "curtosis_exceso": float(stats.kurtosis(x, bias=False)) if len(x) > 3 else np.nan,
+            "asimetría": float(stats.skew(x, bias=False)) if len(x) > 2 and x.nunique() > 1 else np.nan,
+            "curtosis_exceso": float(stats.kurtosis(x, bias=False)) if len(x) > 3 and x.nunique() > 1 else np.nan,
         })
     return pd.DataFrame(rows)
 

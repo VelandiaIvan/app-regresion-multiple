@@ -29,7 +29,8 @@ def test_target_recommendation_matches_business_goal(key):
     df = G.DATASETS[key][1]()
     classes = profiling.classify_columns(df)
     ranking = context.rank_target_candidates(df, classes, _ctx(key))
-    assert G.CONTEXTS[key]["y"] in ranking["variable"].head(2).tolist(), ranking.head(4)
+    # la sugerencia nº 1 debe ser la variable que el usuario describió (no un sinónimo derivado, p. ej. ingresos_netos vs ventas)
+    assert ranking.iloc[0]["variable"] == G.CONTEXTS[key]["y"], ranking.head(4)[["variable", "puntaje", "razones"]]
 
 
 # ----------------------------------------------------------------------------- retail: fuga
@@ -184,3 +185,91 @@ def test_simulation_scenarios_sensitivity_and_extrapolation():
     assert inv["x"] == pytest.approx(sc["base"], rel=1e-6)
     cv = simulation.curve(res, pad=0.2)
     assert cv["extrapolación"].any() and (cv["ip_sup"] > cv["ic_sup"]).all()
+
+
+# ============================================================================ bases de 1000 registros (salud y banca)
+SALUD = "Salud · costo de hospitalización (1000 registros)"
+BANCA = "Banca · monto de crédito aprobado (1000 registros)"
+
+
+@pytest.mark.parametrize("key,fname,cols", [(SALUD, "atencion_hospitalaria.csv", 12), (BANCA, "cartera_credito.csv", 14)])
+def test_new_1000_record_datasets_shape_and_files(key, fname, cols, sample_dir):
+    from core import loader
+    df = G.DATASETS[key][1]()
+    assert df.shape == (1000, cols) and int(df.duplicated().sum()) == 10
+    assert (df.isna().mean() > 0).sum() >= 3                                   # varios faltantes realistas
+    res = loader.load_file(sample_dir / fname)                                 # el archivo escrito se lee igual
+    assert res.df.shape == (1000, cols) and res.meta["codificación"] == "utf-8-sig"
+    assert pd.api.types.is_datetime64_any_dtype(res.df.iloc[:, 1])
+    pd.testing.assert_frame_equal(G.DATASETS[key][1](), df)                    # reproducible (semilla fija)
+
+
+def test_leakage_rule_declared_factor_exempts_medium_but_never_high():
+    from core.context import leakage_risk
+    # «cuota» comparte concepto con «monto» y correlaciona 0,74 → riesgo medio salvo que el usuario la declare como factor
+    assert leakage_risk("cuota_mensual_millones", "monto_aprobado_millones", 0.74)[0] == "media"
+    assert leakage_risk("cuota_mensual_millones", "monto_aprobado_millones", 0.74, declared_factor=True)[0] == "ninguna"
+    # nunca se exime la correlación casi perfecta
+    assert leakage_risk("monto_desembolsado_millones", "monto_aprobado_millones", 0.999, declared_factor=True)[0] == "alta"
+    # el ingreso del cliente (factor declarado) no se confunde con un resultado del negocio
+    assert leakage_risk("ingreso_mensual_millones", "monto_aprobado_millones", 0.83, declared_factor=True)[0] == "ninguna"
+    # ingresos netos vs ventas (ambos resultados) sigue siendo fuga
+    assert leakage_risk("ingresos_netos_millones", "ventas_millones", 0.995)[0] == "alta"
+
+
+def _decl(key, xs):
+    return {x for x in xs if context.mention_score(x, G.CONTEXTS[key]["factores"]) >= 0.5}
+
+
+def test_health_cost_leak_and_log_transform_helps():
+    xs = ["dias_estancia", "num_procedimientos", "edad", "nivel_complejidad", "costo_facturado_eps_millones"]
+    _, md, cmp = _run(SALUD, xs, include_transforms=False, declared_factors=_decl(SALUD, xs))
+    assert cmp.models["costo_facturado_eps_millones"].leak == "alta"
+    assert cmp.recommendation.best_key == "dias_estancia"
+    assert cmp.models["dias_estancia"].res.b1 > 0 and cmp.models["dias_estancia"].res.p_b1 < 1e-30
+    assert cmp.models["dias_estancia"].diag.get("homocedasticidad").severity == "fail"        # costo multiplicativo
+    # con ln(Y) los residuos mejoran y el modelo deja de ser «no confiable»
+    xs2 = ["dias_estancia", "num_procedimientos", "edad", "nivel_complejidad"]
+    _, _, cmp_ln = _run(SALUD, xs2, y_transform="ln", include_transforms=False)
+    assert cmp_ln.models["dias_estancia"].diag.get("normalidad").severity in {"ok", "warn"}
+    assert cmp_ln.recommendation.status in {"con reservas", "recomendado"}
+
+
+def test_health_negative_stay_is_detected_and_fixable():
+    from core import profiling
+    df = G.DATASETS[SALUD][1]()
+    inc = profiling.find_inconsistencies(df)
+    assert ((inc["variable"] == "dias_estancia") & (inc["problema"] == "negativos improbables")).any()
+    res = cleaning.apply_plan(df, CleaningPlan().add("fix_nan", "dias_estancia", "a_faltante", rule="negativos"))
+    assert (res.df["dias_estancia"].dropna() >= 0).all() and res.df["dias_estancia"].isna().sum() >= 2
+
+
+def test_bank_income_is_best_legit_predictor_and_leaks_are_flagged():
+    xs = ["ingreso_mensual_millones", "score_crediticio", "deuda_vigente_millones", "plazo_meses",
+          "monto_desembolsado_millones", "cuota_mensual_millones"]
+    _, md, cmp = _run(BANCA, xs, include_transforms=False, declared_factors=_decl(BANCA, xs))
+    assert cmp.models["monto_desembolsado_millones"].leak == "alta"
+    assert cmp.models["cuota_mensual_millones"].leak == "media"                 # se calcula después del monto
+    assert cmp.models["ingreso_mensual_millones"].leak == "ninguna"             # factor declarado por el usuario
+    assert cmp.recommendation.best_key == "ingreso_mensual_millones"
+    assert "monto_desembolsado_millones" in cmp.recommendation.note_r2          # mayor R², pero descartado por fuga
+
+
+def test_bank_cleaning_improves_reliability():
+    xs = ["ingreso_mensual_millones", "score_crediticio", "deuda_vigente_millones", "plazo_meses"]
+    _, _, raw = _run(BANCA, xs, include_transforms=False)
+    assert raw.recommendation.status == "no confiable"                          # datos sucios: ingresos con error, negativos, duplicados
+    plan = (CleaningPlan().add("drop_duplicates").add("fix_nan", "ingreso_mensual_millones", "a_faltante", rule="negativos")
+            .add("outlier", "ingreso_mensual_millones", "remove", k=3).add("impute", "ingreso_mensual_millones", "median")
+            .add("impute", "score_crediticio", "median").add("impute", "deuda_vigente_millones", "median"))
+    _, md, clean = _run(BANCA, xs, include_transforms=False, plan=plan)
+    assert clean.recommendation.status in {"con reservas", "recomendado"}
+    best = clean.models[clean.recommendation.best_key]
+    assert best.x_source == "ingreso_mensual_millones" and best.res.r2 > 0.5
+    assert best.test_metrics["R²_fuera_muestra"] > 0.6
+    # la «solución» ingenua (atípicos → faltante → mediana) destruye la relación legítima de los ingresos altos
+    naive = (CleaningPlan().add("drop_duplicates").add("fix_nan", "ingreso_mensual_millones", "a_faltante", rule="negativos")
+             .add("outlier", "ingreso_mensual_millones", "to_nan", k=3).add("impute", "ingreso_mensual_millones", "median")
+             .add("impute", "score_crediticio", "median").add("impute", "deuda_vigente_millones", "median"))
+    _, _, nv = _run(BANCA, xs, include_transforms=False, plan=naive)
+    assert nv.models["ingreso_mensual_millones"].res.r2 < best.res.r2 - 0.1

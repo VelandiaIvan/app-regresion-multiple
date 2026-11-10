@@ -81,14 +81,17 @@ def test_imputation_uses_only_fit_rows():
 
 
 def test_outlier_removal_only_touches_train_when_fit_index_given():
-    x = np.r_[np.arange(30.0), [500.0, 600.0]]
+    x = np.r_[np.arange(30.0), [500.0, 600.0]]          # filas 30 y 31 son atípicas
     df = pd.DataFrame({"x": x})
     plan = CleaningPlan().add("outlier", "x", "remove")
-    res = apply_plan(df, plan, fit_index=list(range(30, 32)) + list(range(0, 25)))
-    # el atípico 30/31 está en el conjunto de ajuste → se elimina; ninguna fila fuera de él
-    assert len(res.df) <= len(df)
-    res_all = apply_plan(df, plan)
-    assert len(res_all.df) < len(df)
+    # atípicos en el conjunto de PRUEBA: no se eliminan (la prueba debe reflejar la realidad)
+    res_test_side = apply_plan(df, plan, fit_index=list(range(0, 30)))
+    assert len(res_test_side.df) == 32
+    # atípicos dentro del conjunto de entrenamiento: sí se eliminan
+    res_train_side = apply_plan(df, plan, fit_index=list(range(0, 32)))
+    assert len(res_train_side.df) == 30 and not (res_train_side.df["x"] > 100).any()
+    # sin partición (exploración): se eliminan de todos los datos
+    assert len(apply_plan(df, plan).df) == 30
 
 
 def test_transform_and_encode_are_traceable(manufactura):

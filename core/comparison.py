@@ -186,7 +186,8 @@ def _effective_sign(res: SLRResult) -> int:
 
 
 def build_candidate(md: ModelingData, col: str, src: str, kind: str | None, *,
-                    alpha: float, expected_sign: dict, known_in_advance: dict, leak_cleared: set) -> CandidateModel:
+                    alpha: float, expected_sign: dict, known_in_advance: dict, leak_cleared: set,
+                    declared_factors: set | None = None) -> CandidateModel:
     df = md.df.copy()
     if kind and col not in df.columns:
         df[col] = TRANSFORMS[kind][1](df[src].to_numpy(float))
@@ -214,7 +215,8 @@ def build_candidate(md: ModelingData, col: str, src: str, kind: str | None, *,
     eff = _effective_sign(res)
     exp = expected_sign.get(src)
     sign_ok = None if not exp else bool(eff == exp)
-    leak, msg = leakage_risk(src, md.y_source, float(np.corrcoef(res.x_obs, res.y_obs)[0, 1]) if res.n > 2 else np.nan)
+    leak, msg = leakage_risk(src, md.y_source, float(np.corrcoef(res.x_obs, res.y_obs)[0, 1]) if res.n > 2 else np.nan,
+                             declared_factor=src in (declared_factors or set()))
     if leak != "ninguna" and src in leak_cleared:
         leak, msg = "ninguna", "Usted confirmó que esta variable se conoce antes de estimar Y."
     excluded = None
@@ -268,7 +270,7 @@ def score_model(m: CandidateModel, alpha: float) -> None:
 
 def run_comparison(md: ModelingData, x_cols: list[str], *, alpha: float = 0.05, include_transforms: bool = True,
                    expected_sign: dict | None = None, known_in_advance: dict | None = None,
-                   leak_cleared: set | None = None) -> ComparisonResult:
+                   leak_cleared: set | None = None, declared_factors: set | None = None) -> ComparisonResult:
     expected_sign = expected_sign or {}
     known_in_advance = known_in_advance or {}
     leak_cleared = leak_cleared or set()
@@ -278,7 +280,8 @@ def run_comparison(md: ModelingData, x_cols: list[str], *, alpha: float = 0.05, 
         for col, src, kind in _variants(md, x, include_transforms):
             try:
                 cm = build_candidate(md, col, src, kind, alpha=alpha, expected_sign=expected_sign,
-                                     known_in_advance=known_in_advance, leak_cleared=leak_cleared)
+                                     known_in_advance=known_in_advance, leak_cleared=leak_cleared,
+                                     declared_factors=declared_factors)
             except (RegressionError, KeyError, ValueError) as exc:
                 skipped.append(f"{col}: {exc}")
                 continue
